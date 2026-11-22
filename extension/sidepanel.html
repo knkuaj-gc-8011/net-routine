@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ネットルーティン 編集</title>
+  <link rel="stylesheet" href="editor.css">
+  <style>
+    :root { color-scheme: light dark; --muted: #66707c; --card: #f5f6f8; --border: #d6d9de; --primary: #2563eb; }
+    @media (prefers-color-scheme: dark) { :root { --muted: #9aa3ae; --card: #1f242b; --border: #3a414b; --primary: #5b8cff; } }
+    body { margin: 0; background: #ffffff; color: #1d232b;
+      font: 13px/1.45 system-ui, "Segoe UI", "Yu Gothic UI", "Meiryo", sans-serif; }
+    @media (prefers-color-scheme: dark) { body { background: #16191e; color: #e6e9ee; } }
+    .current {
+      position: sticky; top: 0; z-index: 2; padding: 8px 12px;
+      background: var(--card); border-bottom: 1px solid var(--border);
+    }
+    .current .label { font-size: 11px; color: var(--muted); }
+    .current .title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .current .url { font-size: 11px; color: var(--primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    main { padding: 12px; }
+    .lead { margin: 0 0 12px; color: var(--muted); }
+  </style>
+</head>
+<body data-mode="panel">
+  <div class="current">
+    <div class="label">表示中のページ（「登録」「今のページを追加」で使われます）</div>
+    <div class="title" id="curTitle">—</div>
+    <div class="url" id="curUrl"></div>
+  </div>
+  <main>
+    <p class="lead">左（または右）のタブで普通にブラウジングし、登録したいページを表示した状態でボタンを押してください。</p>
+    <div id="editor"></div>
+  </main>
+  <script src="core.js"></script>
+  <script src="editor.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ネットルーティン 編集</title>
+  <link rel="stylesheet" href="editor.css">
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; background: #ffffff; color: #1d232b;
+      font: 14px/1.5 system-ui, "Segoe UI", "Yu Gothic UI", "Meiryo", sans-serif; }
+    @media (prefers-color-scheme: dark) { body { background: #16191e; color: #e6e9ee; } }
+    main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    .lead { margin: 0 0 20px; opacity: .75; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>ネットルーティン 編集</h1>
+    <p class="lead">カテゴリとサイトを巡回する順に並べてください。変更はすぐに保存されます。</p>
+    <p class="lead">ブラウジングしながら登録したいときは、サイドパネルで編集すると便利です。
+      <button id="openPanel" type="button">サイドパネルで編集</button></p>
+    <div id="editor"></div>
+  </main>
+  <script src="core.js"></script>
+  <script src="editor.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

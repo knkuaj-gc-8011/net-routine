@@ -1,0 +1,82 @@
+/* 編集画面の共通スタイル（正本は shared/editor.css） */
+.routine-editor {
+  --re-bg: #ffffff;
+  --re-card: #f5f6f8;
+  --re-border: #d6d9de;
+  --re-text: #1d232b;
+  --re-muted: #66707c;
+  --re-primary: #2563eb;
+  --re-danger: #c0392b;
+  color: var(--re-text);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  .routine-editor {
+    --re-bg: #16191e;
+    --re-card: #1f242b;
+    --re-border: #3a414b;
+    --re-text: #e6e9ee;
+    --re-muted: #9aa3ae;
+    --re-primary: #5b8cff;
+    --re-danger: #ff6b5b;
+  }
+}
+.routine-editor input,
+.routine-editor textarea {
+  font: inherit;
+  font-size: 16px; /* iPhone で入力時に拡大されないように */
+  color: var(--re-text);
+  background: var(--re-bg);
+  border: 1px solid var(--re-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.routine-editor textarea { width: 100%; }
+.routine-editor button {
+  font: inherit;
+  color: var(--re-text);
+  background: var(--re-bg);
+  border: 1px solid var(--re-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  min-height: 34px;
+}
+.routine-editor button.re-primary { background: var(--re-primary); border-color: var(--re-primary); color: #fff; }
+.routine-editor button.re-danger { color: var(--re-danger); }
+.routine-editor button.re-grab { color: var(--re-primary); border-color: var(--re-primary); font-weight: 600; }
+.re-cat {
+  background: var(--re-card);
+  border: 1px solid var(--re-border);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.re-cat-head { display: flex; gap: 8px; align-items: center; }
+.re-cat-name { flex: 1; font-weight: 600; }
+.re-sites { display: flex; flex-direction: column; gap: 6px; }
+.re-site { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; gap: 6px; align-items: center; }
+.re-add { border-top: 1px dashed var(--re-border); padding-top: 8px; }
+.re-btns { display: flex; gap: 4px; }
+.re-btns button { padding: 4px 8px; }
+.re-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.re-io { border-top: 1px solid var(--re-border); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.re-io h3 { margin: 0; font-size: 1em; }
+.re-hint, .re-empty { color: var(--re-muted); margin: 0; font-size: 0.9em; }
+.re-msg { margin: 0; padding: 8px 10px; border-radius: 6px; background: var(--re-card); border: 1px solid var(--re-border); }
+.re-msg-error { color: var(--re-danger); border-color: var(--re-danger); }
+.re-add-cat { align-self: flex-start; }
+@media (max-width: 560px) {
+  .re-site { grid-template-columns: minmax(0, 1fr) auto; }
+  .re-site .re-site-url, .re-add input[type='url'] { grid-column: 1 / 2; }
+  .re-site .re-btns { grid-row: 1 / 3; grid-column: 2; flex-direction: column; }
+  /* 「登録」ボタンがある（PC版サイドパネル）ときは、ボタンを横一列で下に並べる */
+  .re-site:has(.re-grab) { grid-template-columns: minmax(0, 1fr); }
+  .re-site:has(.re-grab) .re-btns { grid-row: auto; grid-column: 1; flex-direction: row; justify-content: flex-end; }
+}

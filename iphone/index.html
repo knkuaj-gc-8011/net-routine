@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ネットルーティン</title>
+  <meta name="description" content="決まったWebサイトをカテゴリ順に1つずつ巡回する、自分専用のルーティンツール">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="巡回">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="stylesheet" href="editor.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <h1 id="title">ネットルーティン</h1>
+    <span class="top-prog" id="topProg"></span>
+    <button id="modeBtn" class="top-btn">編集</button>
+  </header>
+
+  <main id="routineView" class="view">
+    <div id="list"></div>
+  </main>
+
+  <main id="editView" class="view" hidden>
+    <p class="hint">カテゴリとサイトを巡回する順に並べてください。変更はすぐにこのiPhoneに保存されます。</p>
+    <div id="editor"></div>
+  </main>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <nav id="nav" class="nav">
+    <div class="nav-info">
+      <button id="curCheck" class="check" aria-label="このサイトのチェック"></button>
+      <div class="nav-text">
+        <div class="nav-title" id="navTitle"></div>
+        <div class="nav-sub" id="navSub"></div>
+      </div>
+    </div>
+    <div class="nav-btns">
+      <button id="prevBtn" aria-label="前へ"><span>◀</span><small>前へ</small></button>
+      <button id="openBtn" aria-label="もう一度開く"><span>↗</span><small>開く</small></button>
+      <button id="nextBtn" class="primary" aria-label="次へ"><span>▶</span><small>次へ</small></button>
+      <button id="nextCatBtn" aria-label="次カテゴリへ"><span>⏭</span><small>次カテゴリ</small></button>
+      <button id="listBtn" aria-label="一覧の現在位置へ"><span>☰</span><small>一覧</small></button>
+    </div>
+  </nav>
+
+  <script src="core.js"></script>
+  <script src="editor.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

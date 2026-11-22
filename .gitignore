@@ -1,0 +1,5 @@
+node_modules/
+.DS_Store
+Thumbs.db
+# 個人のサイト一覧を書き出したファイルは公開リポジトリに入れない
+net-routine*.json

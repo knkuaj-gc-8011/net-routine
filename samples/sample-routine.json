@@ -1,0 +1,27 @@
+{
+  "app": "net-routine",
+  "version": 1,
+  "categories": [
+    {
+      "name": "ニュース",
+      "sites": [
+        { "name": "NHK ニュース", "url": "https://www3.nhk.or.jp/news/" },
+        { "name": "Yahoo!ニュース", "url": "https://news.yahoo.co.jp/" }
+      ]
+    },
+    {
+      "name": "天気",
+      "sites": [
+        { "name": "tenki.jp", "url": "https://tenki.jp/" },
+        { "name": "気象庁", "url": "https://www.jma.go.jp/" }
+      ]
+    },
+    {
+      "name": "技術",
+      "sites": [
+        { "name": "GitHub", "url": "https://github.com/" },
+        { "name": "MDN", "url": "https://developer.mozilla.org/ja/" }
+      ]
+    }
+  ]
+}
