@@ -196,6 +196,14 @@ test('編集: 追加・更新・移動・削除', () => {
   assert.equal(d.categories.length, 1);
 });
 
+test('parseSharedText: コピーした文字から URL とタイトルを取り出す', () => {
+  assert.deepEqual(C.parseSharedText('https://news.yahoo.co.jp/'), { title: '', url: 'https://news.yahoo.co.jp/' });
+  assert.deepEqual(C.parseSharedText('Yahoo!ニュース\nhttps://news.yahoo.co.jp/topics'), { title: 'Yahoo!ニュース', url: 'https://news.yahoo.co.jp/topics' });
+  assert.deepEqual(C.parseSharedText('  https://a.example/x?y=1  '), { title: '', url: 'https://a.example/x?y=1' });
+  assert.equal(C.parseSharedText('ただの文字'), null);
+  assert.equal(C.parseSharedText(''), null);
+});
+
 test('書き出し→読み込みで内容が保たれる', () => {
   const json = C.exportJson(sample());
   const r = C.validateImport(json);

@@ -345,6 +345,20 @@
     return d;
   }
 
+  /**
+   * コピーされた文字から URL とタイトルを取り出す（iPhone版のコピー経由の登録用）。
+   * 「URLだけ」でも「タイトル（改行）URL」でもよい。URL がなければ null
+   */
+  function parseSharedText(text) {
+    const s = String(text || '');
+    const m = s.match(/https?:\/\/[^\s<>"']+/i);
+    if (!m) return null;
+    const url = normalizeUrl(m[0]);
+    if (!url) return null;
+    const title = s.replace(m[0], ' ').split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean)[0] || '';
+    return { title: title, url: url };
+  }
+
   /* ---------- JSON の書き出し・読み込み ---------- */
 
   function exportJson(data) {
@@ -416,6 +430,7 @@
     updateSite: updateSite,
     removeSite: removeSite,
     moveSite: moveSite,
+    parseSharedText: parseSharedText,
     exportJson: exportJson,
     validateImport: validateImport,
   };

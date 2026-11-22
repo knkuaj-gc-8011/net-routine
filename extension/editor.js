@@ -4,6 +4,7 @@
  * 使い方: RoutineEditor.mount(要素, { load: async () => data, save: async (data) => {}, getCurrentPage? })
  *   getCurrentPage（省略可）: async () => ({ title, url })。
  *   渡すと、各行に「登録」（表示中ページのURLを入れる）と「今のページを追加」ボタンが出る。
+ *   grabLabels（省略可）: { row, rowTitle, add, addTitle, error } でボタンの文言とエラー文を変えられる。
  */
 (function (root) {
   'use strict';
@@ -29,6 +30,14 @@
   function mount(container, opts) {
     let data = C.emptyData();
     let message = null; // { text, error }
+    // 「登録」系ボタンの文言（PC版の既定値。iPhone版はコピー経由用に差し替える）
+    const labels = Object.assign({
+      row: '登録',
+      rowTitle: '表示中のページの URL をこの行に入れる',
+      add: '今のページを追加',
+      addTitle: '表示中のページをこのカテゴリに追加する',
+      error: '表示中のページは登録できません（http/https のページを開いてください）',
+    }, opts.grabLabels || {});
     const drafts = {}; // 追加フォームの書きかけ（再描画しても残す）
 
     async function commit(next) {
@@ -78,7 +87,7 @@
       }
       const href = page && C.normalizeUrl(page.url);
       if (!href || !/^https?:/i.test(String(page.url))) {
-        show('表示中のページは登録できません（http/https のページを開いてください）', true);
+        show(labels.error, true);
         return null;
       }
       return { title: String(page.title || '').trim(), url: href };
@@ -118,7 +127,7 @@
         }),
         h('div', { class: 're-btns' }, [
           opts.getCurrentPage
-            ? h('button', { class: 're-grab', title: '表示中のページの URL をこの行に入れる', onclick: function () { setUrlFromPage(site); } }, '登録')
+            ? h('button', { class: 're-grab', title: labels.rowTitle, onclick: function () { setUrlFromPage(site); } }, labels.row)
             : null,
           h('button', { title: '上へ', onclick: function () { commit(C.moveSite(data, site.id, -1)); } }, '▲'),
           h('button', { title: '下へ', onclick: function () { commit(C.moveSite(data, site.id, 1)); } }, '▼'),
@@ -151,7 +160,7 @@
         h('div', { class: 're-btns' }, [
           h('button', { class: 're-primary', onclick: add }, '追加'),
           opts.getCurrentPage
-            ? h('button', { class: 're-grab', title: '表示中のページをこのカテゴリに追加する', onclick: function () { addFromPage(cat); } }, '今のページを追加')
+            ? h('button', { class: 're-grab', title: labels.addTitle, onclick: function () { addFromPage(cat); } }, labels.add)
             : null,
         ]),
       ]);

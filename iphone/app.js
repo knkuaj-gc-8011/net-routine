@@ -190,6 +190,15 @@
         editor = RoutineEditor.mount($('editor'), {
           load: loadData,
           save: (data) => writeJson(KEY_DATA, data),
+          // コピー経由の登録: ブラウザの 共有→コピー でコピーした URL をクリップボードから読む
+          getCurrentPage: async () => C.parseSharedText(await navigator.clipboard.readText()),
+          grabLabels: {
+            row: '貼り付け',
+            rowTitle: 'コピーした URL をこの行に入れる',
+            add: 'コピーしたURLを追加',
+            addTitle: 'コピーした URL をこのカテゴリに追加する',
+            error: 'コピーした URL が見つかりません。ブラウザの 共有 →「コピー」で URL をコピーしてから押してください',
+          },
         });
       } else {
         editor.reload();
