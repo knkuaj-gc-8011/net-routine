@@ -28,6 +28,10 @@ function renderList(v) {
             window.close();
           });
           row.append(el('span', 'dot' + (s.visited ? ' on' : ''), s.visited ? '✓' : ''), btn);
+          if (s.noNew) {
+            row.classList.add('nonew');
+            row.append(el('span', 'badge', '新着なし'));
+          }
           return row;
         }),
       ];
@@ -69,6 +73,11 @@ function render(v) {
 chrome.runtime.sendMessage({ cmd: 'view' }).then(render);
 
 $('start').addEventListener('click', async () => {
+  // 巡回開始は YouTube の新着確認を待つことがあるので、その間の表示を出す
+  if (mainAction === 'start') {
+    $('start').disabled = true;
+    $('start').textContent = 'YouTube の新着を確認中…';
+  }
   const msg = mainAction === 'openTab' ? { cmd: 'openTab' } : { cmd: 'action', action: { type: 'start' } };
   await chrome.runtime.sendMessage(msg);
   window.close();

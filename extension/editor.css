@@ -63,6 +63,10 @@
 .re-sites { display: flex; flex-direction: column; gap: 6px; }
 .re-site { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; gap: 6px; align-items: center; }
 .re-add { border-top: 1px dashed var(--re-border); padding-top: 8px; }
+/* YouTube チャンネルの「新着チェック」行（PC版） */
+.re-feed { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: 0.85em; margin: -2px 0 4px; }
+.re-feed label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.re-feed-info { color: var(--re-muted); }
 .re-btns { display: flex; gap: 4px; }
 .re-btns button { padding: 4px 8px; }
 .re-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }

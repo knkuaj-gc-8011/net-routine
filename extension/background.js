@@ -1,15 +1,105 @@
 // ネットルーティン PC版 service worker
-// 一覧（routineData）と当日の状態（routineState）は chrome.storage.local、
-// 巡回タブのID（routineTabId）は chrome.storage.session に保存する。
+// chrome.storage.local:
+//   routineData … 一覧 / routineState … 当日の状態（毎朝5時リセット）
+//   siteLastViewed … { siteId: アプリから最後に開いた日時 }（リセットしない）
+//   feedStatus … { siteId: { url, channelId, latest, checkedAt, error } }（YouTube の新着確認結果）
+// chrome.storage.session: routineTabId … 巡回タブのID
 importScripts('core.js');
 const C = self.RoutineCore;
 
 async function loadAll() {
-  const r = await chrome.storage.local.get(['routineData', 'routineState']);
+  const r = await chrome.storage.local.get(['routineData', 'routineState', 'feedStatus', 'siteLastViewed']);
   const data = r.routineData || C.emptyData();
   const state = C.normalizeState(r.routineState, data, new Date());
-  return { data, state };
+  // 新着のない YouTube チャンネルは「次へ」などで飛ばす
+  const skip = C.computeFeedSkip(data, r.feedStatus, r.siteLastViewed);
+  return { data, state, skip };
 }
+
+// アプリから開いた日時を記録する（YouTube の新着判定の基準）
+async function recordViewed(siteId) {
+  const r = await chrome.storage.local.get('siteLastViewed');
+  const lv = r.siteLastViewed || {};
+  lv[siteId] = Date.now();
+  await chrome.storage.local.set({ siteLastViewed: lv });
+}
+
+/* ---------- YouTube チャンネルの新着確認 ---------- */
+
+const FEED_MIN_INTERVAL = 5 * 60 * 1000; // 同じチャンネルを5分以内に何度も確認しない
+let feedCheckRunning = null;
+
+async function fetchText(url) {
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.text();
+}
+
+// 1チャンネル分を確認して、新しい状態を返す
+async function checkOneFeed(site, prev) {
+  const st = prev && prev.url === site.url ? Object.assign({}, prev) : { url: site.url };
+  try {
+    if (!st.channelId) {
+      const ref = C.youTubeChannelRef(site.url);
+      st.channelId = ref.channelId || C.extractChannelId(await fetchText(ref.pageUrl));
+      if (!st.channelId) throw new Error('チャンネルIDが見つかりません');
+    }
+    const xml = await fetchText('https://www.youtube.com/feeds/videos.xml?channel_id=' + st.channelId);
+    st.latest = C.parseYouTubeFeedLatest(xml);
+    st.error = null;
+  } catch (e) {
+    // 確認できなかったときは「新着あり」扱い（飛ばさない）
+    st.latest = null;
+    st.error = String(e && e.message ? e.message : e);
+  }
+  st.checkedAt = Date.now();
+  return st;
+}
+
+// 全チャンネルを確認する（同時に1回だけ実行）
+function checkFeeds() {
+  if (feedCheckRunning) return feedCheckRunning;
+  feedCheckRunning = (async () => {
+    const r = await chrome.storage.local.get(['routineData', 'feedStatus']);
+    const data = r.routineData || C.emptyData();
+    const old = r.feedStatus || {};
+    const next = {};
+    const targets = C.flatten(data)
+      .map((e) => e.site)
+      .filter((s) => !s.noFeedCheck && C.isYouTubeChannelUrl(s.url));
+    // 4件ずつ並行して確認する
+    const queue = targets.slice();
+    const worker = async () => {
+      while (queue.length) {
+        const site = queue.shift();
+        const prev = old[site.id];
+        const fresh = prev && prev.url === site.url && !prev.error && Date.now() - prev.checkedAt < FEED_MIN_INTERVAL;
+        next[site.id] = fresh ? prev : await checkOneFeed(site, prev);
+      }
+    };
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    await chrome.storage.local.set({ feedStatus: next });
+    return next;
+  })().finally(() => { feedCheckRunning = null; });
+  return feedCheckRunning;
+}
+
+// 最大 ms ミリ秒だけ待つ（巡回開始を長く待たせないため）
+function waitAtMost(promise, ms) {
+  return Promise.race([promise.catch(() => {}), new Promise((r) => setTimeout(r, ms))]);
+}
+
+// 30分ごとに確認する
+function ensureFeedAlarm() {
+  chrome.alarms.get('feedCheck', (a) => {
+    if (!a) chrome.alarms.create('feedCheck', { periodInMinutes: 30, delayInMinutes: 1 });
+  });
+}
+chrome.alarms.onAlarm.addListener((a) => {
+  if (a.name === 'feedCheck') checkFeeds();
+});
+chrome.runtime.onStartup.addListener(() => { ensureFeedAlarm(); checkFeeds(); });
+ensureFeedAlarm();
 
 async function getRoutineTabId() {
   const r = await chrome.storage.session.get('routineTabId');
@@ -45,8 +135,8 @@ async function focusRoutineTab() {
 }
 
 async function buildView(senderTabId) {
-  const { data, state } = await loadAll();
-  const view = C.getView(data, state, new Date());
+  const { data, state, skip } = await loadAll();
+  const view = C.getView(data, state, new Date(), { skip });
   const tabId = await getRoutineTabId();
   view.hasRoutineTab = tabId !== null;
   view.isRoutineTab = senderTabId !== undefined && senderTabId === tabId;
@@ -59,8 +149,11 @@ async function handle(msg, sender) {
     case 'view':
       return buildView(senderTabId);
     case 'action': {
-      const { data, state } = await loadAll();
-      const res = C.applyAction(data, state, msg.action, new Date());
+      // 巡回開始のときは、新着を確認してから始める（最大6秒待つ）
+      if (msg.action && msg.action.type === 'start') await waitAtMost(checkFeeds(), 6000);
+      const { data, state, skip } = await loadAll();
+      const res = C.applyAction(data, state, msg.action, new Date(), { skip });
+      if (res.entry) await recordViewed(res.entry.site.id);
       if (!res.noop) {
         const save = { routineState: res.state };
         // 最初に戻ったときの案内は、移動先のページのナビバーでトースト表示する
@@ -77,6 +170,9 @@ async function handle(msg, sender) {
     }
     case 'focusTab':
       return { ok: await focusRoutineTab() };
+    case 'checkFeeds':
+      await checkFeeds();
+      return buildView(senderTabId);
     case 'openTab': {
       // 巡回タブを表示する。閉じられていたら、最後に見ていたサイト（なければ最初のサイト）で開き直す
       if (await focusRoutineTab()) return buildView(senderTabId);
@@ -86,6 +182,7 @@ async function handle(msg, sender) {
       const siteId = state.currentSiteId || list[0].site.id;
       const res = C.applyAction(data, state, { type: 'goto', siteId }, new Date());
       await chrome.storage.local.set({ routineState: res.state });
+      await recordViewed(res.entry.site.id);
       await openInRoutineTab(res.entry.site.url);
       return buildView(senderTabId);
     }
@@ -119,4 +216,11 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 // 初回インストール時は編集画面を開く
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') chrome.runtime.openOptionsPage();
+  ensureFeedAlarm();
+  checkFeeds();
+});
+
+// 一覧が編集されたら（チャンネルの追加・URL変更など）確認し直す
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.routineData) checkFeeds();
 });

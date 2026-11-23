@@ -77,22 +77,27 @@
    *   finished … 未訪問サイトが残っていない（start のとき）
    *   noop … 何も変わらない（例: 先頭で「前へ」）
    *   notice … 最後から最初へ戻ったときの案内文（トースト用）。それ以外は null
+   * opts.skip（省略可）: 「次へ」などで飛ばすサイトIDの配列（YouTube の新着なしチャンネルなど）。
+   *   飛ばすサイトは、巡回完了の判定では「済み」と同じに扱う。一覧から選べば開ける
    */
-  function applyAction(data, state, action, now) {
+  function applyAction(data, state, action, now, opts) {
     const s = normalizeState(state, data, now);
     const list = flatten(data);
     const visited = new Set(s.visited);
+    const skip = new Set((opts && opts.skip) || []);
     const cur = s.currentSiteId ? indexOfSite(list, s.currentSiteId) : -1;
+    const isDone = function (e) { return visited.has(e.site.id) || skip.has(e.site.id); };
 
+    // 未巡回（チェックなし・飛ばし対象でもない）の最初のサイト
     function firstUnvisited(from, pred) {
       for (let i = Math.max(0, from); i < list.length; i++) {
-        if (!visited.has(list[i].site.id) && (!pred || pred(list[i]))) return i;
+        if (!isDone(list[i]) && (!pred || pred(list[i]))) return i;
       }
       return -1;
     }
 
-    // 全サイトがチェック済み（今日の巡回完了）なら、「次へ」「次カテゴリ」は一覧の順で進むだけにする
-    const allVisited = list.length > 0 && list.every(function (e) { return visited.has(e.site.id); });
+    // 全サイトが済み（今日の巡回完了）なら、「次へ」「次カテゴリ」は一覧の順で進むだけにする
+    const allVisited = list.length > 0 && list.every(isDone);
 
     let target = -1;
     let notice = null; // 最初に戻ったときにトーストで出す文言
@@ -187,14 +192,18 @@
     return { total: total, visited: done, remaining: total - done, categories: categories };
   }
 
-  /** 画面表示用にまとめた情報 */
-  function getView(data, state, now) {
+  /** 画面表示用にまとめた情報。opts.skip は applyAction と同じ */
+  function getView(data, state, now, opts) {
     const s = normalizeState(state, data, now);
     const list = flatten(data);
     const visited = new Set(s.visited);
+    const skip = new Set((opts && opts.skip) || []);
     const cur = s.currentSiteId ? indexOfSite(list, s.currentSiteId) : -1;
     const p = progress(data, s);
     const current = cur >= 0 ? list[cur] : null;
+    // 残り = チェックなし かつ 飛ばし対象でもない
+    const remaining = list.filter(function (e) { return !visited.has(e.site.id) && !skip.has(e.site.id); }).length;
+    const noNewCount = list.filter(function (e) { return !visited.has(e.site.id) && skip.has(e.site.id); }).length;
     return {
       // 最後まで来たら最初に戻るので、サイトがあれば常に押せる
       canNext: p.total > 0,
@@ -202,9 +211,10 @@
       state: s,
       total: p.total,
       visitedCount: p.visited,
-      remaining: p.remaining,
+      remaining: remaining,
+      noNewCount: noNewCount, // 新着なしで飛ばすサイトの数（チェックなしのもの）
       started: cur >= 0 || s.finished || p.visited > 0,
-      finished: s.finished || (p.total > 0 && p.remaining === 0),
+      finished: s.finished || (p.total > 0 && remaining === 0),
       current: current
         ? {
             siteId: current.site.id,
@@ -214,6 +224,7 @@
             catProgress: p.categories[current.catIndex],
             position: cur + 1,
             visited: visited.has(current.site.id),
+            noNew: skip.has(current.site.id) && !visited.has(current.site.id),
           }
         : null,
       canPrev: cur > 0,
@@ -224,7 +235,11 @@
           total: p.categories[ci].total,
           visited: p.categories[ci].visited,
           sites: (c.sites || []).map(function (x) {
-            return { id: x.id, name: x.name, url: x.url, visited: visited.has(x.id), current: x.id === s.currentSiteId };
+            return {
+              id: x.id, name: x.name, url: x.url, visited: visited.has(x.id),
+              // 「新着なし」はまだチェックしていないサイトにだけ出す（今日見たものに出しても紛らわしいため）
+              current: x.id === s.currentSiteId, noNew: skip.has(x.id) && !visited.has(x.id),
+            };
           }),
         };
       }),
@@ -319,6 +334,10 @@
       site.url = href;
     }
     if (patch.name !== undefined) site.name = String(patch.name).trim() || site.name;
+    if (patch.noFeedCheck !== undefined) {
+      if (patch.noFeedCheck) site.noFeedCheck = true;
+      else delete site.noFeedCheck;
+    }
     return { ok: true, data: d, error: null };
   }
 
@@ -359,6 +378,80 @@
     return { title: title, url: url };
   }
 
+  /* ---------- YouTube チャンネルの新着チェック（PC版で使用） ---------- */
+
+  /**
+   * URL が YouTube のチャンネルページなら、その手がかりを返す。違えば null
+   *   { channelId } … /channel/UC... の形（そのまま使える）
+   *   { pageUrl }   … /@名前・/c/名前・/user/名前 の形（ページからチャンネルIDを調べる）
+   */
+  function youTubeChannelRef(url) {
+    let u;
+    try { u = new URL(url); } catch (e) { return null; }
+    if (!/^(www\.|m\.)?youtube\.com$/i.test(u.hostname)) return null;
+    const parts = u.pathname.split('/').filter(Boolean);
+    if (parts.length === 0) return null;
+    if (parts[0] === 'channel' && /^UC[\w-]{22}$/.test(parts[1] || '')) return { channelId: parts[1] };
+    if (/^@[^/]+$/.test(parts[0]) || ((parts[0] === 'c' || parts[0] === 'user') && parts[1])) {
+      const base = parts[0].startsWith('@') ? parts[0] : parts[0] + '/' + parts[1];
+      return { pageUrl: 'https://www.youtube.com/' + base };
+    }
+    return null;
+  }
+
+  function isYouTubeChannelUrl(url) {
+    return !!youTubeChannelRef(url);
+  }
+
+  /** チャンネルページの HTML からチャンネルID（UC...）を取り出す。見つからなければ null */
+  function extractChannelId(html) {
+    const s = String(html || '');
+    const patterns = [
+      /<link rel="canonical" href="https:\/\/www\.youtube\.com\/channel\/(UC[\w-]{22})"/,
+      /"externalId":"(UC[\w-]{22})"/,
+      /<meta itemprop="identifier" content="(UC[\w-]{22})"/,
+      /"browseId":"(UC[\w-]{22})"/,
+    ];
+    for (let i = 0; i < patterns.length; i++) {
+      const m = s.match(patterns[i]);
+      if (m) return m[1];
+    }
+    return null;
+  }
+
+  /** チャンネルのフィード（RSS）から、最新動画の公開日時（ミリ秒）を返す。動画がなければ null */
+  function parseYouTubeFeedLatest(xml) {
+    const re = /<entry>[\s\S]*?<published>([^<]+)<\/published>/g;
+    let latest = null;
+    let m;
+    while ((m = re.exec(String(xml || '')))) {
+      const t = Date.parse(m[1]);
+      if (!isNaN(t) && (latest === null || t > latest)) latest = t;
+    }
+    return latest;
+  }
+
+  /**
+   * 「次へ」で飛ばすサイトIDを求める。
+   * 対象: YouTube のチャンネルで、新着チェックが有効、前回アプリから開いた後に新しい動画がないもの。
+   * 一度も開いていない・確認できていないチャンネルは飛ばさない（新着ありとして扱う）。
+   *   feedStatus: { [siteId]: { latest: ミリ秒|null } }
+   *   lastViewed: { [siteId]: ミリ秒 }
+   */
+  function computeFeedSkip(data, feedStatus, lastViewed) {
+    const fs = feedStatus || {};
+    const lv = lastViewed || {};
+    return flatten(data)
+      .filter(function (e) {
+        const site = e.site;
+        if (site.noFeedCheck || !isYouTubeChannelUrl(site.url)) return false;
+        const st = fs[site.id];
+        const viewed = lv[site.id];
+        return !!st && typeof st.latest === 'number' && typeof viewed === 'number' && st.latest <= viewed;
+      })
+      .map(function (e) { return e.site.id; });
+  }
+
   /* ---------- JSON の書き出し・読み込み ---------- */
 
   function exportJson(data) {
@@ -367,7 +460,14 @@
         app: 'net-routine',
         version: DATA_VERSION,
         categories: data.categories.map(function (c) {
-          return { name: c.name, sites: c.sites.map(function (x) { return { name: x.name, url: x.url }; }) };
+          return {
+            name: c.name,
+            sites: c.sites.map(function (x) {
+              const o = { name: x.name, url: x.url };
+              if (x.noFeedCheck) o.noFeedCheck = true;
+              return o;
+            }),
+          };
         }),
       },
       null,
@@ -403,7 +503,9 @@
           return { ok: false, data: null, error: '「' + c.name + '」の' + (j + 1) + '番目のサイトの URL が正しくありません' };
         }
         const name = typeof x.name === 'string' && x.name.trim() ? x.name.trim() : new URL(href).hostname;
-        outSites.push({ id: genId('site'), name: name, url: href });
+        const out = { id: genId('site'), name: name, url: href };
+        if (x.noFeedCheck === true) out.noFeedCheck = true;
+        outSites.push(out);
       }
       d.categories.push({ id: genId('cat'), name: c.name.trim(), sites: outSites });
     }
@@ -431,6 +533,11 @@
     removeSite: removeSite,
     moveSite: moveSite,
     parseSharedText: parseSharedText,
+    youTubeChannelRef: youTubeChannelRef,
+    isYouTubeChannelUrl: isYouTubeChannelUrl,
+    extractChannelId: extractChannelId,
+    parseYouTubeFeedLatest: parseYouTubeFeedLatest,
+    computeFeedSkip: computeFeedSkip,
     exportJson: exportJson,
     validateImport: validateImport,
   };

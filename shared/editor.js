@@ -5,6 +5,8 @@
  *   getCurrentPage（省略可）: async () => ({ title, url })。
  *   渡すと、各行に「登録」（表示中ページのURLを入れる）と「今のページを追加」ボタンが出る。
  *   grabLabels（省略可）: { row, rowTitle, add, addTitle, error } でボタンの文言とエラー文を変えられる。
+ *   feedToggle（省略可）: true なら YouTube チャンネルの行に「新着チェック」の切り替えを出す（PC版）。
+ *   feedInfo（省略可）: (siteId) => 文字列。新着チェックの状況として行に表示する。
  */
 (function (root) {
   'use strict';
@@ -111,6 +113,23 @@
       commit(r.data);
     }
 
+    // YouTube チャンネルの行に出す「新着チェック」の切り替え
+    function feedRow(site) {
+      if (!opts.feedToggle || !C.isYouTubeChannelUrl(site.url)) return null;
+      const on = !site.noFeedCheck;
+      const info = on && opts.feedInfo ? opts.feedInfo(site.id) : '';
+      return h('div', { class: 're-feed' }, [
+        h('label', null, [
+          h('input', {
+            type: 'checkbox', checked: on, 'data-key': 'feed:' + site.id,
+            onchange: function (e) { commit(C.updateSite(data, site.id, { noFeedCheck: !e.target.checked }).data); },
+          }),
+          ' 新着チェック（新しい動画がなければ「次へ」で飛ばす）',
+        ]),
+        info ? h('span', { class: 're-feed-info' }, info) : null,
+      ]);
+    }
+
     function siteRow(site) {
       return h('div', { class: 're-site' }, [
         h('input', {
@@ -136,6 +155,7 @@
             onclick: function () { if (confirm('「' + site.name + '」を削除しますか？')) commit(C.removeSite(data, site.id)); },
           }, '✕'),
         ]),
+        feedRow(site),
       ]);
     }
 

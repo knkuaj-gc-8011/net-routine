@@ -1,6 +1,6 @@
 // オフラインでも起動できるよう、自前のファイルをキャッシュする。
 // 更新をすぐ反映するため「ネットワーク優先・失敗したらキャッシュ」にしている。
-const CACHE = 'net-routine-v2';
+const CACHE = 'net-routine-v3';
 const FILES = [
   './',
   'index.html',

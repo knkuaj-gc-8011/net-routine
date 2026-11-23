@@ -196,6 +196,87 @@ test('編集: 追加・更新・移動・削除', () => {
   assert.equal(d.categories.length, 1);
 });
 
+test('skip: 新着なしのサイトは「次へ」「次カテゴリ」「開始」で飛ばし、完了判定では済み扱い', () => {
+  const data = sample();
+  const opts = { skip: ['b', 'c'] };
+  const go = (actions, state) => {
+    let s = state || C.emptyState(NOW);
+    let res;
+    for (const a of actions) { res = C.applyAction(data, s, typeof a === 'string' ? { type: a } : a, NOW, opts); s = res.state; }
+    return res;
+  };
+  assert.equal(go(['start']).entry.site.id, 'a');
+  assert.equal(go(['start', 'next']).entry.site.id, 'd', 'b と c を飛ばす');
+  assert.equal(go(['start', 'nextCategory']).entry.site.id, 'd', '次カテゴリの先頭 c も飛ばす');
+  // 飛ばしたものはチェックされない
+  const r = go(['start', 'next']);
+  assert.deepEqual(r.state.visited, ['a', 'd']);
+  // 残り e,f を見たら完了（b,c は新着なしで済み扱い）
+  const done = go(['start', 'next', 'next', 'next']);
+  const v = C.getView(data, done.state, NOW, opts);
+  assert.equal(v.remaining, 0);
+  assert.equal(v.finished, true);
+  assert.equal(v.noNewCount, 2);
+  assert.equal(v.categories[0].sites[1].noNew, true);
+  // 完了後は「次へ」で一覧の順に進む（新着なしも含めて）
+  const after = C.applyAction(data, Object.assign({}, done.state, { currentSiteId: 'a' }), { type: 'next' }, NOW, opts);
+  assert.equal(after.entry.site.id, 'b');
+  // 一覧からは開ける
+  assert.equal(go([{ type: 'goto', siteId: 'c' }]).entry.site.id, 'c');
+});
+
+test('YouTube: チャンネルURLの判定', () => {
+  assert.deepEqual(C.youTubeChannelRef('https://www.youtube.com/@NHK'), { pageUrl: 'https://www.youtube.com/@NHK' });
+  assert.deepEqual(C.youTubeChannelRef('https://www.youtube.com/@NHK/videos'), { pageUrl: 'https://www.youtube.com/@NHK' });
+  assert.deepEqual(C.youTubeChannelRef('https://m.youtube.com/c/foo/featured'), { pageUrl: 'https://www.youtube.com/c/foo' });
+  assert.deepEqual(C.youTubeChannelRef('https://youtube.com/channel/UCabcdefghijklmnopqrstuv'), { channelId: 'UCabcdefghijklmnopqrstuv' });
+  assert.equal(C.youTubeChannelRef('https://www.youtube.com/watch?v=xyz'), null);
+  assert.equal(C.youTubeChannelRef('https://www.youtube.com/'), null);
+  assert.equal(C.youTubeChannelRef('https://example.com/@foo'), null);
+});
+
+test('YouTube: チャンネルIDの取り出しとフィードの最新日時', () => {
+  const html = '<html><link rel="canonical" href="https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv"></html>';
+  assert.equal(C.extractChannelId(html), 'UCabcdefghijklmnopqrstuv');
+  assert.equal(C.extractChannelId('{"externalId":"UCzzzzzzzzzzzzzzzzzzzzzz"}'), 'UCzzzzzzzzzzzzzzzzzzzzzz');
+  assert.equal(C.extractChannelId('<html></html>'), null);
+  const xml = `<feed><published>2010-01-01T00:00:00+00:00</published>
+    <entry><id>1</id><published>2026-11-20T10:00:00+00:00</published></entry>
+    <entry><id>2</id><published>2026-11-22T08:30:00+00:00</published></entry>
+    <entry><id>3</id><published>2026-11-21T00:00:00+00:00</published></entry></feed>`;
+  assert.equal(C.parseYouTubeFeedLatest(xml), Date.parse('2026-11-22T08:30:00+00:00'), 'チャンネル自体の published は無視');
+  assert.equal(C.parseYouTubeFeedLatest('<feed><published>2010-01-01T00:00:00Z</published></feed>'), null);
+});
+
+test('YouTube: computeFeedSkip', () => {
+  const data = {
+    categories: [{ id: 'c', name: 'YT', sites: [
+      { id: 'y1', name: '1', url: 'https://www.youtube.com/@one' },
+      { id: 'y2', name: '2', url: 'https://www.youtube.com/@two' },
+      { id: 'y3', name: '3', url: 'https://www.youtube.com/@three' },
+      { id: 'y4', name: '4', url: 'https://www.youtube.com/@four', noFeedCheck: true },
+      { id: 'w', name: 'web', url: 'https://example.com/' },
+    ] }],
+  };
+  const status = { y1: { latest: 100 }, y2: { latest: 300 }, y3: { latest: 100 }, y4: { latest: 100 }, w: { latest: 100 } };
+  const viewed = { y1: 200, y2: 200, y4: 200, w: 200 }; // y3 は一度も開いていない
+  assert.deepEqual(C.computeFeedSkip(data, status, viewed), ['y1']);
+  // 確認できていない（latest なし）なら飛ばさない
+  assert.deepEqual(C.computeFeedSkip(data, { y1: { latest: null, error: 'x' } }, viewed), []);
+});
+
+test('noFeedCheck は編集・書き出し・読み込みで保たれる', () => {
+  let d = C.addCategory(C.emptyData(), 'YT');
+  d = C.addSite(d, d.categories[0].id, 'a', 'https://www.youtube.com/@a').data;
+  const id = d.categories[0].sites[0].id;
+  d = C.updateSite(d, id, { noFeedCheck: true }).data;
+  assert.equal(d.categories[0].sites[0].noFeedCheck, true);
+  const back = C.validateImport(C.exportJson(d)).data;
+  assert.equal(back.categories[0].sites[0].noFeedCheck, true);
+  d = C.updateSite(d, id, { noFeedCheck: false }).data;
+  assert.equal('noFeedCheck' in d.categories[0].sites[0], false);
+});
+
 test('parseSharedText: コピーした文字から URL とタイトルを取り出す', () => {
   assert.deepEqual(C.parseSharedText('https://news.yahoo.co.jp/'), { title: '', url: 'https://news.yahoo.co.jp/' });
   assert.deepEqual(C.parseSharedText('Yahoo!ニュース\nhttps://news.yahoo.co.jp/topics'), { title: 'Yahoo!ニュース', url: 'https://news.yahoo.co.jp/topics' });

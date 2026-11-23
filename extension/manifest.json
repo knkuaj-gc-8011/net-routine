@@ -3,7 +3,7 @@
   "name": "ネットルーティン",
   "version": "1.0.0",
   "description": "決まったWebサイトをカテゴリ順に1つずつ巡回する、自分専用のルーティンツール",
-  "permissions": ["storage", "tabs", "sidePanel"],
+  "permissions": ["storage", "tabs", "sidePanel", "alarms"],
   "side_panel": { "default_path": "sidepanel.html" },
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js" },

@@ -127,7 +127,8 @@
     }
     if (!v.current) return { title: '巡回を始めましょう', sub: '「次へ」で最初の未訪問サイトを開きます' };
     const cp = v.current.catProgress;
-    return { title: v.current.siteName, sub: v.current.categoryName + '（' + cp.visited + '/' + cp.total + '）' };
+    const noNew = v.current.noNew ? ' ・ 新着動画なし' : '';
+    return { title: v.current.siteName, sub: v.current.categoryName + '（' + cp.visited + '/' + cp.total + '）' + noNew };
   }
 
   // 一覧: カテゴリごとに縦4行まで。5つ目以降は右の列へ。はみ出したら横スクロール
@@ -137,13 +138,18 @@
         h('section', null, [
           h('h4', null, [cat.name, h('span', { class: 'muted' }, ' ' + cat.visited + '/' + cat.total)]),
           h('div', { class: 'sites' }, cat.sites.map((s) =>
-            h('div', { class: 'row' + (s.current ? ' current' : '') }, [
+            h('div', { class: 'row' + (s.current ? ' current' : '') + (s.noNew ? ' nonew' : '') }, [
               h('button', {
                 class: 'check' + (s.visited ? ' on' : ''),
                 title: s.visited ? 'チェックを外す' : 'チェックを付ける',
                 onclick: () => toggle(s.id),
               }, s.visited ? '✓' : ''),
-              h('button', { class: 'link', title: s.url, onclick: () => act('goto', { siteId: s.id }, true) }, s.name),
+              h('button', {
+                class: 'link',
+                title: s.url + (s.noNew ? '\n新着動画なし（「次へ」では飛ばします）' : ''),
+                onclick: () => act('goto', { siteId: s.id }, true),
+              }, s.name),
+              s.noNew ? h('span', { class: 'badge', title: '前回開いた後に新しい動画がありません' }, '新着なし') : null,
             ])
           )),
         ])
@@ -217,7 +223,10 @@
       h('div', { class: 'bar' }, [
         h('button', { class: 'icon', title: 'ナビを折りたたむ', onclick: () => setCollapsed(true) }, '▼'),
         h('div', { class: 'info' }, [h('div', { class: 'title' }, st.title), h('div', { class: 'sub' }, st.sub)]),
-        h('div', { class: 'prog', title: '今日のチェック数 / 全サイト数' }, progress),
+        h('div', {
+          class: 'prog',
+          title: '今日のチェック数 / 全サイト数' + (v.noNewCount ? '\n新着動画がないため飛ばすチャンネル: ' + v.noNewCount + '件' : ''),
+        }, progress + (v.noNewCount ? '（新着なし ' + v.noNewCount + '）' : '')),
         cur ? h('button', {
           class: 'check' + (cur.visited ? ' on' : ''),
           title: cur.visited ? 'このサイトのチェックを外す' : 'このサイトにチェックを付ける',
@@ -297,6 +306,11 @@
     .row { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 6px; }
     .row.current { background: var(--hl); }
     .row button.check { width: 22px; height: 22px; font-size: 12px; flex: none; }
+    .row.nonew button.link { color: var(--muted); }
+    .badge {
+      flex: none; font-size: 10px; line-height: 1; padding: 3px 5px; border-radius: 4px;
+      color: var(--muted); border: 1px solid var(--border);
+    }
     button.link {
       background: none; border: none; padding: 2px 0; text-align: left; flex: 1; min-width: 0;
       overflow: hidden; text-overflow: ellipsis;
@@ -335,7 +349,7 @@
   `;
 
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && (changes.routineState || changes.routineData || changes.navCollapsed || changes.navToast)) refresh();
+    if (area === 'local' && (changes.routineState || changes.routineData || changes.navCollapsed || changes.navToast || changes.feedStatus)) refresh();
   });
 
   refresh();
