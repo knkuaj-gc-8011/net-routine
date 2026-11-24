@@ -38,7 +38,8 @@
   }
 
   function emptyState(now) {
-    return { dayKey: getDayKey(now), visited: [], currentSiteId: null, finished: false };
+    // noNewVisited … 「新着なし」の状態で開いた（チェックした）サイトID。表示の色分けに使う
+    return { dayKey: getDayKey(now), visited: [], noNewVisited: [], currentSiteId: null, finished: false };
   }
 
   /** カテゴリ→サイトの2階層を、巡回順の1次元リストにする */
@@ -64,6 +65,8 @@
     if (s.dayKey !== key) s = emptyState(now);
     const ids = new Set(flatten(data).map(function (e) { return e.site.id; }));
     s.visited = Array.from(new Set((s.visited || []).filter(function (id) { return ids.has(id); })));
+    const visitedNow = new Set(s.visited);
+    s.noNewVisited = Array.from(new Set((s.noNewVisited || []).filter(function (id) { return visitedNow.has(id); })));
     if (s.currentSiteId && !ids.has(s.currentSiteId)) s.currentSiteId = null;
     s.finished = !!s.finished;
     return s;
@@ -163,16 +166,26 @@
     const entry = list[target];
     s.currentSiteId = entry.site.id;
     s.finished = false;
-    if (!visited.has(entry.site.id)) s.visited.push(entry.site.id);
+    if (!visited.has(entry.site.id)) {
+      s.visited.push(entry.site.id);
+      // 新着なしの状態で開いたことを覚えておく（開いた後は前回閲覧が更新されて判定が変わるため）
+      if (skip.has(entry.site.id)) s.noNewVisited.push(entry.site.id);
+    }
     return { state: s, entry: entry, finished: false, noop: false, notice: notice };
   }
 
-  /** 手動でチェックを付け外しする */
-  function toggleVisited(data, state, siteId, now) {
+  /** 手動でチェックを付け外しする。opts.skip は applyAction と同じ */
+  function toggleVisited(data, state, siteId, now, opts) {
     const s = normalizeState(state, data, now);
+    const skip = new Set((opts && opts.skip) || []);
     const i = s.visited.indexOf(siteId);
-    if (i >= 0) s.visited.splice(i, 1);
-    else if (indexOfSite(flatten(data), siteId) >= 0) s.visited.push(siteId);
+    if (i >= 0) {
+      s.visited.splice(i, 1);
+      s.noNewVisited = s.noNewVisited.filter(function (id) { return id !== siteId; });
+    } else if (indexOfSite(flatten(data), siteId) >= 0) {
+      s.visited.push(siteId);
+      if (skip.has(siteId)) s.noNewVisited.push(siteId);
+    }
     return s;
   }
 
@@ -198,6 +211,7 @@
     const list = flatten(data);
     const visited = new Set(s.visited);
     const skip = new Set((opts && opts.skip) || []);
+    const noNewVisited = new Set(s.noNewVisited);
     const cur = s.currentSiteId ? indexOfSite(list, s.currentSiteId) : -1;
     const p = progress(data, s);
     const current = cur >= 0 ? list[cur] : null;
@@ -225,6 +239,7 @@
             position: cur + 1,
             visited: visited.has(current.site.id),
             noNew: skip.has(current.site.id) && !visited.has(current.site.id),
+            noNewVisited: noNewVisited.has(current.site.id),
           }
         : null,
       canPrev: cur > 0,
@@ -239,6 +254,8 @@
               id: x.id, name: x.name, url: x.url, visited: visited.has(x.id),
               // 「新着なし」はまだチェックしていないサイトにだけ出す（今日見たものに出しても紛らわしいため）
               current: x.id === s.currentSiteId, noNew: skip.has(x.id) && !visited.has(x.id),
+              noNewVisited: noNewVisited.has(x.id), // 新着なしの状態で巡回した
+
             };
           }),
         };

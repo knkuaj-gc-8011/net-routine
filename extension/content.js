@@ -131,6 +131,23 @@
     return { title: v.current.siteName, sub: v.current.categoryName + '（' + cp.visited + '/' + cp.total + '）' + noNew };
   }
 
+  // 円いチェックの見た目
+  //   巡回済み … 緑に白い ✓ / 新着なしで巡回済み … グレーに白い ✓ / 新着なしで未巡回 … グレーに黒い ✓
+  function checkButton(siteId, visited, noNew, noNewVisited) {
+    let cls = 'check';
+    let title = visited ? 'チェックを外す' : 'チェックを付ける';
+    if (visited && noNewVisited) {
+      cls += ' on quiet';
+      title = '新着なしで巡回済み（押すとチェックを外す）';
+    } else if (visited) {
+      cls += ' on';
+    } else if (noNew) {
+      cls += ' quiet';
+      title = '新着なしのため飛ばします（押すとチェックを付ける）';
+    }
+    return h('button', { class: cls, title, onclick: () => toggle(siteId) }, visited || noNew ? '✓' : '');
+  }
+
   // 一覧: カテゴリごとに縦4行まで。5つ目以降は右の列へ。はみ出したら横スクロール
   function listPanel(v) {
     const panel = h('div', { class: 'panel' },
@@ -139,11 +156,7 @@
           h('h4', null, [cat.name, h('span', { class: 'muted' }, ' ' + cat.visited + '/' + cat.total)]),
           h('div', { class: 'sites' }, cat.sites.map((s) =>
             h('div', { class: 'row' + (s.current ? ' current' : '') + (s.noNew ? ' nonew' : '') }, [
-              h('button', {
-                class: 'check' + (s.visited ? ' on' : ''),
-                title: s.visited ? 'チェックを外す' : 'チェックを付ける',
-                onclick: () => toggle(s.id),
-              }, s.visited ? '✓' : ''),
+              checkButton(s.id, s.visited, s.noNew, s.noNewVisited),
               h('button', {
                 class: 'link',
                 title: s.url + (s.noNew ? '\n新着動画なし（「次へ」では飛ばします）' : ''),
@@ -227,11 +240,7 @@
           class: 'prog',
           title: '今日のチェック数 / 全サイト数' + (v.noNewCount ? '\n新着動画がないため飛ばすチャンネル: ' + v.noNewCount + '件' : ''),
         }, progress + (v.noNewCount ? '（新着なし ' + v.noNewCount + '）' : '')),
-        cur ? h('button', {
-          class: 'check' + (cur.visited ? ' on' : ''),
-          title: cur.visited ? 'このサイトのチェックを外す' : 'このサイトにチェックを付ける',
-          onclick: () => toggle(cur.siteId),
-        }, cur.visited ? '✓' : '') : null,
+        cur ? checkButton(cur.siteId, cur.visited, cur.noNew, cur.noNewVisited) : null,
         h('button', { disabled: !v.canPrev, onclick: () => act('prev') }, '◀ 前へ'),
         h('button', { class: 'primary', disabled: !v.canNext, onclick: () => act('next') }, '次へ ▶'),
         h('button', { disabled: !v.canNextCategory, onclick: () => act('nextCategory') }, '次カテゴリ ⏭'),
@@ -254,14 +263,14 @@
     * { box-sizing: border-box; }
     .wrap, .pill {
       --bg: rgba(255,255,255,.97); --fg: #1d232b; --muted: #66707c; --border: #d6d9de;
-      --btn: #f1f3f6; --primary: #2563eb; --ok: #16a34a; --hl: #e8efff;
+      --btn: #f1f3f6; --primary: #2563eb; --ok: #16a34a; --hl: #e8efff; --quiet: #9aa1aa;
       font: 13px/1.35 system-ui, -apple-system, "Segoe UI", "Yu Gothic UI", "Meiryo", sans-serif;
       color: var(--fg);
     }
     @media (prefers-color-scheme: dark) {
       .wrap, .pill {
         --bg: rgba(24,27,32,.97); --fg: #e6e9ee; --muted: #9aa3ae; --border: #3a414b;
-        --btn: #2a3038; --primary: #5b8cff; --ok: #34c46a; --hl: #24324d;
+        --btn: #2a3038; --primary: #5b8cff; --ok: #34c46a; --hl: #24324d; --quiet: #8b939c;
       }
     }
     .bar {
@@ -287,6 +296,9 @@
       border: 2px solid var(--border); background: transparent; color: #fff;
     }
     button.check.on { background: var(--ok); border-color: var(--ok); }
+    /* 新着なし: グレーの塗りつぶし。未巡回は黒い ✓、巡回済みは白い ✓ */
+    button.check.quiet { background: var(--quiet); border-color: var(--quiet); color: #111; }
+    button.check.on.quiet { color: #fff; }
     .panel {
       display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
       background: var(--bg); border-top: 1px solid var(--border); padding: 6px 4px 8px;

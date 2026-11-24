@@ -164,8 +164,8 @@ async function handle(msg, sender) {
       return Object.assign(await buildView(senderTabId), { result: { finished: res.finished, noop: res.noop, notice: res.notice } });
     }
     case 'toggle': {
-      const { data, state } = await loadAll();
-      await chrome.storage.local.set({ routineState: C.toggleVisited(data, state, msg.siteId, new Date()) });
+      const { data, state, skip } = await loadAll();
+      await chrome.storage.local.set({ routineState: C.toggleVisited(data, state, msg.siteId, new Date(), { skip }) });
       return buildView(senderTabId);
     }
     case 'focusTab':

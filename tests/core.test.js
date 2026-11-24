@@ -225,6 +225,31 @@ test('skip: 新着なしのサイトは「次へ」「次カテゴリ」「開�
   assert.equal(go([{ type: 'goto', siteId: 'c' }]).entry.site.id, 'c');
 });
 
+test('noNewVisited: 新着なしの状態で開いた・チェックしたことを記録する', () => {
+  const data = sample();
+  const opts = { skip: ['b'] };
+  // 新着なしの b を一覧から開く → noNewVisited に入る。普通の a は入らない
+  let s = C.applyAction(data, C.emptyState(NOW), { type: 'goto', siteId: 'b' }, NOW, opts).state;
+  s = C.applyAction(data, s, { type: 'goto', siteId: 'a' }, NOW, opts).state;
+  assert.deepEqual(s.noNewVisited, ['b']);
+  // 開いた後は（前回閲覧が更新されて）a も skip に入るが、a の表示は新着なし扱いにならない
+  let v = C.getView(data, s, NOW, { skip: ['a', 'b'] });
+  assert.equal(v.categories[0].sites[0].noNewVisited, false);
+  assert.equal(v.categories[0].sites[1].noNewVisited, true);
+  assert.equal(v.categories[0].sites[1].noNew, false, '巡回済みなので「未巡回の新着なし」ではない');
+  // 手動: 新着なしの d にチェック → 記録。外すと消える
+  s = C.toggleVisited(data, s, 'd', NOW, { skip: ['d'] });
+  assert.ok(s.noNewVisited.includes('d'));
+  s = C.toggleVisited(data, s, 'd', NOW, { skip: ['d'] });
+  assert.ok(!s.noNewVisited.includes('d'));
+  // b のチェックを外すと記録も消える
+  s = C.toggleVisited(data, s, 'b', NOW);
+  assert.deepEqual(s.noNewVisited, []);
+  // 日付が変われば消える
+  const old = Object.assign({}, s, { dayKey: '2000-01-01', visited: ['b'], noNewVisited: ['b'] });
+  assert.deepEqual(C.normalizeState(old, data, NOW).noNewVisited, []);
+});
+
 test('YouTube: チャンネルURLの判定', () => {
   assert.deepEqual(C.youTubeChannelRef('https://www.youtube.com/@NHK'), { pageUrl: 'https://www.youtube.com/@NHK' });
   assert.deepEqual(C.youTubeChannelRef('https://www.youtube.com/@NHK/videos'), { pageUrl: 'https://www.youtube.com/@NHK' });

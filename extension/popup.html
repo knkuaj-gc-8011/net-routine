@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <title>ネットルーティン</title>
   <style>
-    :root { --bg: #fff; --fg: #1d232b; --muted: #66707c; --border: #d6d9de; --btn: #f1f3f6; --primary: #2563eb; --bar: #e3e7ee; --ok: #16a34a; --hl: #e8efff; }
+    :root { --bg: #fff; --fg: #1d232b; --muted: #66707c; --border: #d6d9de; --btn: #f1f3f6; --primary: #2563eb; --bar: #e3e7ee; --ok: #16a34a; --hl: #e8efff; --quiet: #9aa1aa; }
     @media (prefers-color-scheme: dark) {
-      :root { --bg: #181b20; --fg: #e6e9ee; --muted: #9aa3ae; --border: #3a414b; --btn: #2a3038; --primary: #5b8cff; --bar: #2a3038; --ok: #34c46a; --hl: #24324d; }
+      :root { --bg: #181b20; --fg: #e6e9ee; --muted: #9aa3ae; --border: #3a414b; --btn: #2a3038; --primary: #5b8cff; --bar: #2a3038; --ok: #34c46a; --hl: #24324d; --quiet: #8b939c; }
     }
     body { margin: 0; width: 320px; padding: 14px; background: var(--bg); color: var(--fg);
       font: 13px/1.4 system-ui, "Segoe UI", "Yu Gothic UI", "Meiryo", sans-serif; }
@@ -26,6 +26,9 @@
     .dot { flex: none; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border);
       color: #fff; font-size: 10px; font-weight: 700; line-height: 12px; text-align: center; }
     .dot.on { background: var(--ok); border-color: var(--ok); }
+    /* 新着なし: グレーの塗りつぶし。未巡回は黒い ✓、巡回済みは白い ✓ */
+    .dot.quiet { background: var(--quiet); border-color: var(--quiet); color: #111; }
+    .dot.on.quiet { color: #fff; }
     .row button { flex: 1; min-width: 0; text-align: left; background: none; border: none; padding: 4px 0;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .row button:hover { text-decoration: underline; }

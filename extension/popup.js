@@ -27,7 +27,10 @@ function renderList(v) {
             await chrome.runtime.sendMessage({ cmd: 'action', action: { type: 'goto', siteId: s.id } });
             window.close();
           });
-          row.append(el('span', 'dot' + (s.visited ? ' on' : ''), s.visited ? '✓' : ''), btn);
+          // 巡回済み=緑に白✓ / 新着なしで巡回済み=グレーに白✓ / 新着なしで未巡回=グレーに黒✓
+          const quiet = (s.visited && s.noNewVisited) || (!s.visited && s.noNew);
+          const dot = el('span', 'dot' + (s.visited ? ' on' : '') + (quiet ? ' quiet' : ''), s.visited || s.noNew ? '✓' : '');
+          row.append(dot, btn);
           if (s.noNew) {
             row.classList.add('nonew');
             row.append(el('span', 'badge', '新着なし'));
