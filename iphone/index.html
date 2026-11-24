@@ -31,6 +31,15 @@
     <p class="hint">カテゴリとサイトを巡回する順に並べてください。変更はすぐにこのiPhoneに保存されます。</p>
     <p class="hint">ブラウザで見ているページを登録するには、ブラウザの 共有 →「コピー」で URL をコピーし、ここで「コピーしたURLを追加」（または各行の「貼り付け」）を押してください。</p>
     <div id="editor"></div>
+    <section class="server">
+      <h3>YouTube の新着チェック</h3>
+      <p class="hint">中継サーバー（Cloudflare Workers）の URL を入れると、前回開いた後に新しい動画がないチャンネルを「次へ」で飛ばします。この URL はこの iPhone の中にだけ保存されます。</p>
+      <input id="serverUrl" type="url" placeholder="https://net-routine-yt.○○.workers.dev" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="server-row">
+        <button id="serverSave" type="button">保存して確認</button>
+      </div>
+      <p class="hint" id="serverStatus"></p>
+    </section>
   </main>
 
   <div id="toast" class="toast" role="status" hidden></div>

@@ -8,6 +8,7 @@
   --ok: #16a34a;
   --hl: #e8efff;
   --nav-bg: rgba(255, 255, 255, 0.96);
+  --quiet: #9aa1aa;
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -21,6 +22,7 @@
     --ok: #34c46a;
     --hl: #22304a;
     --nav-bg: rgba(24, 27, 32, 0.96);
+    --quiet: #8b939c;
   }
 }
 * { box-sizing: border-box; }
@@ -115,6 +117,50 @@ button { font: inherit; color: inherit; cursor: pointer; }
   padding: 0;
 }
 .check.on { background: var(--ok); border-color: var(--ok); }
+/* 新着なし: グレーの塗りつぶし。未巡回は黒い ✓、巡回済みは白い ✓（PC版と同じ） */
+.check.quiet { background: var(--quiet); border-color: var(--quiet); color: #111; }
+.check.on.quiet { color: #fff; }
+.row.nonew .name { color: var(--muted); }
+.badge {
+  flex: none;
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: 4px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+/* 中継サーバーの設定（編集画面） */
+.server {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.server h3 { margin: 0; font-size: 16px; }
+.server .hint { margin: 0; }
+.server input {
+  font: inherit;
+  font-size: 16px;
+  color: var(--fg);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  width: 100%;
+}
+.server-row button {
+  font: inherit;
+  border: 1px solid var(--primary);
+  background: var(--primary);
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-weight: 600;
+}
 
 /* トースト: ナビの直上・左右中央（bottom は JS でナビの高さに合わせる） */
 .toast {

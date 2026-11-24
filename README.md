@@ -30,7 +30,7 @@
 4. 編集画面が開くので、サイトを登録する（`samples/sample-routine.json` を読み込めば、すぐに試せます）
 5. ツールバーのアイコン（パズルのマークからピン留めすると便利）→「巡回を開始」
 
-### YouTube チャンネルの新着チェック（PC版のみ）
+### YouTube チャンネルの新着チェック（PC版。iPhone版は下の「iPhone版で YouTube の新着チェックを使う」を参照）
 
 `youtube.com/@名前`・`youtube.com/channel/...` などのチャンネルページを登録すると、自動で新着チェックの対象になります。
 
@@ -92,6 +92,20 @@
 
 サイト名はドメイン名（例: news.yahoo.co.jp）で登録されるので、必要なら直してください。
 コピーした文字が「タイトル（改行）URL」の形なら、タイトルがサイト名になります。
+
+### iPhone版で YouTube の新着チェックを使う（中継サーバーの準備）
+
+iPhone のWebアプリは YouTube のデータを直接読めないため、無料の Cloudflare Workers に小さな中継サーバー（`cloudflare/worker.js`）を置きます。最初の1回だけ必要です。
+
+1. https://dash.cloudflare.com/sign-up でアカウントを作る（無料プラン）
+2. 左メニュー「Workers & Pages」→「作成（Create）」→「Hello World から開始」→ 名前を `net-routine-yt` にして「デプロイ」
+3. 「コードを編集（Edit code）」を押し、中身を全部消して `cloudflare/worker.js` の内容を貼り付け →「デプロイ（Deploy）」
+4. 表示される URL（`https://net-routine-yt.○○.workers.dev`）をコピー
+5. iPhone の「巡回」アプリ →「編集」→ 一番下の「YouTube の新着チェック」に URL を貼り付けて「保存して確認」
+
+- 中継サーバーが応答するのは、公開中のアプリ（`https://knkuaj-gc-8011.github.io`）からの問い合わせと、YouTube のチャンネルの問い合わせだけです
+- 新着の確認は、アプリを開いたとき・サイトから戻ってきたとき（同じチャンネルは5分以内に再確認しない）・開いている間は30分ごと
+- 前回閲覧日時は iPhone 版で開いた日時です（PC版とは別々に記録します）
 
 ## PC版の一覧を iPhone に移す
 

@@ -11,20 +11,7 @@ async function getCurrentPage() {
 // YouTube の新着確認の結果（各チャンネルの行に表示する）
 let feedStatus = {};
 let lastViewed = {};
-const fmt = (t) => {
-  const d = new Date(t);
-  return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-};
-function feedInfo(siteId) {
-  const st = feedStatus[siteId];
-  if (!st) return '確認待ち';
-  if (st.error) return '確認できませんでした（' + st.error + '）→ 飛ばしません';
-  if (typeof st.latest !== 'number') return '動画がありません';
-  const viewed = lastViewed[siteId];
-  const head = '最新動画 ' + fmt(st.latest);
-  if (typeof viewed !== 'number') return head + '・まだアプリから開いていません';
-  return head + '・前回 ' + fmt(viewed) + (st.latest > viewed ? ' → 新着あり' : ' → 新着なし（飛ばす）');
-}
+const feedInfo = (siteId) => RoutineCore.describeFeedStatus(feedStatus[siteId], lastViewed[siteId]);
 
 const editor = RoutineEditor.mount(document.getElementById('editor'), {
   load: async () => {

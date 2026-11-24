@@ -290,6 +290,16 @@ test('YouTube: computeFeedSkip', () => {
   assert.deepEqual(C.computeFeedSkip(data, { y1: { latest: null, error: 'x' } }, viewed), []);
 });
 
+test('describeFeedStatus: 新着チェックの状況の説明文', () => {
+  const t = new Date(2026, 10, 22, 9, 5).getTime();
+  assert.equal(C.describeFeedStatus(undefined, 0), '確認待ち');
+  assert.match(C.describeFeedStatus({ error: 'HTTP 404' }), /確認できませんでした（HTTP 404）/);
+  assert.equal(C.describeFeedStatus({ latest: null }), '動画がありません');
+  assert.equal(C.describeFeedStatus({ latest: t }), '最新動画 11/22 09:05・まだアプリから開いていません');
+  assert.match(C.describeFeedStatus({ latest: t }, t + 1), /新着なし（飛ばす）$/);
+  assert.match(C.describeFeedStatus({ latest: t }, t - 1), /新着あり$/);
+});
+
 test('noFeedCheck は編集・書き出し・読み込みで保たれる', () => {
   let d = C.addCategory(C.emptyData(), 'YT');
   d = C.addSite(d, d.categories[0].id, 'a', 'https://www.youtube.com/@a').data;

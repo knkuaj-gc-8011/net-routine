@@ -469,6 +469,20 @@
       .map(function (e) { return e.site.id; });
   }
 
+  /** 編集画面に出す、新着チェックの状況の説明文 */
+  function describeFeedStatus(st, viewed) {
+    const fmt = function (t) {
+      const d = new Date(t);
+      return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    };
+    if (!st) return '確認待ち';
+    if (st.error) return '確認できませんでした（' + st.error + '）→ 飛ばしません';
+    if (typeof st.latest !== 'number') return '動画がありません';
+    const head = '最新動画 ' + fmt(st.latest);
+    if (typeof viewed !== 'number') return head + '・まだアプリから開いていません';
+    return head + '・前回 ' + fmt(viewed) + (st.latest > viewed ? ' → 新着あり' : ' → 新着なし（飛ばす）');
+  }
+
   /* ---------- JSON の書き出し・読み込み ---------- */
 
   function exportJson(data) {
@@ -555,6 +569,7 @@
     extractChannelId: extractChannelId,
     parseYouTubeFeedLatest: parseYouTubeFeedLatest,
     computeFeedSkip: computeFeedSkip,
+    describeFeedStatus: describeFeedStatus,
     exportJson: exportJson,
     validateImport: validateImport,
   };
