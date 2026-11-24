@@ -67,6 +67,13 @@ if (isPanel) {
     // クリック直後でないと開けないため、ウィンドウIDを先に取っておく
     let windowId = null;
     chrome.windows.getCurrent().then((w) => { windowId = w.id; });
-    btn.addEventListener('click', () => chrome.sidePanel.open({ windowId }));
+    btn.addEventListener('click', () => {
+      // 拡張機能を再読み込みする前から開いていたタブでは、拡張機能の機能が使えなくなっている
+      if (!chrome.sidePanel || !chrome.runtime || !chrome.runtime.id) {
+        alert('拡張機能が更新されたため、このページを再読み込み（F5）してから、もう一度押してください。');
+        return;
+      }
+      chrome.sidePanel.open({ windowId }).catch((e) => alert('サイドパネルを開けませんでした: ' + e.message));
+    });
   }
 }
