@@ -436,23 +436,40 @@
     return null;
   }
 
-  /** チャンネルのフィード（RSS）から、最新動画の公開日時（ミリ秒）を返す。動画がなければ null */
-  function parseYouTubeFeedLatest(xml) {
-    const re = /<entry>[\s\S]*?<published>([^<]+)<\/published>/g;
-    let latest = null;
+  /**
+   * チャンネルのフィード（RSS）を読む。ショート動画は除く（リンクが /shorts/ のもの）。
+   * 戻り値: { latest: 最新動画の公開日時（ミリ秒）| null, videos: [{ id, t }]（公開の古い順） }
+   */
+  function parseYouTubeFeed(xml) {
+    const re = /<entry>([\s\S]*?)<\/entry>/g;
+    const videos = [];
     let m;
     while ((m = re.exec(String(xml || '')))) {
-      const t = Date.parse(m[1]);
-      if (!isNaN(t) && (latest === null || t > latest)) latest = t;
+      const body = m[1];
+      const pub = body.match(/<published>([^<]+)<\/published>/);
+      const t = pub ? Date.parse(pub[1]) : NaN;
+      if (isNaN(t)) continue;
+      if (/<link rel="alternate" href="[^"]*\/shorts\//.test(body)) continue;
+      const id = body.match(/<yt:videoId>([\w-]+)<\/yt:videoId>/);
+      videos.push({ id: id ? id[1] : null, t: t });
     }
-    return latest;
+    videos.sort(function (a, b) { return a.t - b.t; });
+    return {
+      latest: videos.length ? videos[videos.length - 1].t : null,
+      videos: videos.filter(function (v) { return v.id; }),
+    };
+  }
+
+  /** 最新動画（ショートを除く）の公開日時（ミリ秒）。動画がなければ null */
+  function parseYouTubeFeedLatest(xml) {
+    return parseYouTubeFeed(xml).latest;
   }
 
   /**
    * 「次へ」で飛ばすサイトIDを求める。
-   * 対象: YouTube のチャンネルで、新着チェックが有効、前回アプリから開いた後に新しい動画がないもの。
+   * 対象: YouTube のチャンネルで、新着チェックが有効、前回アプリから開いた後に新しい動画（ショートを除く）がないもの。
    * 一度も開いていない・確認できていないチャンネルは飛ばさない（新着ありとして扱う）。
-   *   feedStatus: { [siteId]: { latest: ミリ秒|null } }
+   *   feedStatus: { [siteId]: { latest: ミリ秒|null, error } }
    *   lastViewed: { [siteId]: ミリ秒 }
    */
   function computeFeedSkip(data, feedStatus, lastViewed) {
@@ -464,9 +481,39 @@
         if (site.noFeedCheck || !isYouTubeChannelUrl(site.url)) return false;
         const st = fs[site.id];
         const viewed = lv[site.id];
-        return !!st && typeof st.latest === 'number' && typeof viewed === 'number' && st.latest <= viewed;
+        if (!st || st.error || typeof viewed !== 'number') return false;
+        return typeof st.latest !== 'number' || st.latest <= viewed;
       })
       .map(function (e) { return e.site.id; });
+  }
+
+  /** 前回アプリから開いた後に公開された動画（古い順）。分からなければ空 */
+  function newVideos(st, viewed) {
+    if (!st || st.error || typeof viewed !== 'number' || !Array.isArray(st.videos)) return [];
+    return st.videos
+      .filter(function (v) { return v && v.id && typeof v.t === 'number' && v.t > viewed; })
+      .sort(function (a, b) { return a.t - b.t; });
+  }
+
+  /**
+   * YouTube チャンネルを開くときの行き先。新着動画があれば、チャンネルページの代わりにその動画を開く。
+   *   1本 → その動画 / 複数 → 古い順に並べた一時プレイリスト（続けて再生される）
+   * 戻り値: { url, count, viewedAt（前回閲覧日時として記録する値）} / 新着を開かないときは null
+   * viewedAt は「フィードを確認した日時」。確認の後に出た動画を次回の新着として残すため。
+   */
+  function feedOpenTarget(site, st, viewed) {
+    if (!site || site.noFeedCheck || !isYouTubeChannelUrl(site.url)) return null;
+    if (!st || (st.url && st.url !== site.url)) return null;
+    const list = newVideos(st, viewed);
+    if (list.length === 0) return null;
+    const ids = list.map(function (v) { return v.id; });
+    return {
+      url: ids.length === 1
+        ? 'https://www.youtube.com/watch?v=' + ids[0]
+        : 'https://www.youtube.com/watch_videos?video_ids=' + ids.join(','),
+      count: ids.length,
+      viewedAt: typeof st.checkedAt === 'number' ? st.checkedAt : Date.now(),
+    };
   }
 
   /** 編集画面に出す、新着チェックの状況の説明文 */
@@ -477,10 +524,14 @@
     };
     if (!st) return '確認待ち';
     if (st.error) return '確認できませんでした（' + st.error + '）→ 飛ばしません';
-    if (typeof st.latest !== 'number') return '動画がありません';
+    if (typeof st.latest !== 'number') {
+      return '動画がありません（ショートは数えません）' + (typeof viewed === 'number' ? ' → 新着なし（飛ばす）' : '');
+    }
     const head = '最新動画 ' + fmt(st.latest);
     if (typeof viewed !== 'number') return head + '・まだアプリから開いていません';
-    return head + '・前回 ' + fmt(viewed) + (st.latest > viewed ? ' → 新着あり' : ' → 新着なし（飛ばす）');
+    if (st.latest <= viewed) return head + '・前回 ' + fmt(viewed) + ' → 新着なし（飛ばす）';
+    const n = newVideos(st, viewed).length;
+    return head + '・前回 ' + fmt(viewed) + ' → 新着あり' + (n > 0 ? '（' + n + '本を古い順に再生）' : '');
   }
 
   /* ---------- JSON の書き出し・読み込み ---------- */
@@ -567,8 +618,11 @@
     youTubeChannelRef: youTubeChannelRef,
     isYouTubeChannelUrl: isYouTubeChannelUrl,
     extractChannelId: extractChannelId,
+    parseYouTubeFeed: parseYouTubeFeed,
     parseYouTubeFeedLatest: parseYouTubeFeedLatest,
     computeFeedSkip: computeFeedSkip,
+    newVideos: newVideos,
+    feedOpenTarget: feedOpenTarget,
     describeFeedStatus: describeFeedStatus,
     exportJson: exportJson,
     validateImport: validateImport,

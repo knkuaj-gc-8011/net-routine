@@ -32,10 +32,18 @@
   // 新着のない YouTube チャンネルは「次へ」などで飛ばす（中継サーバーを設定したときだけ）
   const getSkip = (data) => (getServer() ? C.computeFeedSkip(data, readJson(KEY_FEED), readJson(KEY_LAST)) : []);
 
-  function recordViewed(siteId) {
+  const KEY_OPENED = 'netRoutine.lastOpened'; // { siteId, url } 最後に開いたもの（「↗ 開く」で開き直す）
+
+  // サイトを開く準備: 開くURLを決め、アプリから開いた日時を記録する（YouTube の新着判定の基準）
+  // YouTube チャンネルに新着動画があれば、チャンネルページの代わりに新着動画を古い順に再生する
+  function prepareOpen(site) {
     const lv = readJson(KEY_LAST) || {};
-    lv[siteId] = Date.now();
+    const target = getServer() ? C.feedOpenTarget(site, (readJson(KEY_FEED) || {})[site.id], lv[site.id]) : null;
+    lv[site.id] = target ? target.viewedAt : Date.now();
     writeJson(KEY_LAST, lv);
+    const url = target ? target.url : site.url;
+    writeJson(KEY_OPENED, { siteId: site.id, url });
+    return url;
   }
 
   /* ---------- YouTube チャンネルの新着確認（中継サーバー経由） ---------- */
@@ -53,10 +61,13 @@
       if (json.error) throw new Error(json.error);
       st.channelId = json.channelId;
       st.latest = typeof json.latest === 'number' ? json.latest : null;
+      // 古い中継サーバーは動画一覧を返さない（そのときはチャンネルページを開く）
+      st.videos = Array.isArray(json.videos) ? json.videos : null;
       st.error = null;
     } catch (e) {
       // 確認できなかったときは「新着あり」扱い（飛ばさない）
       st.latest = null;
+      st.videos = null;
       st.error = String(e && e.message ? e.message : e);
     }
     st.checkedAt = Date.now();
@@ -78,7 +89,7 @@
         while (queue.length) {
           const site = queue.shift();
           const prev = old[site.id];
-          const fresh = !force && prev && prev.url === site.url && !prev.error && Date.now() - prev.checkedAt < FEED_MIN_INTERVAL;
+          const fresh = !force && prev && prev.url === site.url && !prev.error && prev.videos !== undefined && Date.now() - prev.checkedAt < FEED_MIN_INTERVAL;
           next[site.id] = fresh ? prev : await checkOneFeed(server, site, prev);
         }
       };
@@ -115,8 +126,7 @@
     const res = C.applyAction(data, loadState(data), action, new Date(), { skip: getSkip(data) });
     if (!res.noop) writeJson(KEY_STATE, res.state);
     if (res.entry) {
-      openSite(res.entry.site.url);
-      recordViewed(res.entry.site.id);
+      openSite(prepareOpen(res.entry.site));
     }
     render();
     if (res.notice) {
@@ -245,7 +255,13 @@
   $('prevBtn').addEventListener('click', () => act({ type: 'prev' }));
   $('nextBtn').addEventListener('click', () => act({ type: 'next' }));
   $('nextCatBtn').addEventListener('click', () => act({ type: 'nextCategory' }));
-  $('openBtn').addEventListener('click', () => currentView && currentView.current && openSite(currentView.current.url));
+  // もう一度開く: 最後に開いたもの（新着動画の再生リストなど）を開き直す
+  $('openBtn').addEventListener('click', () => {
+    const cur = currentView && currentView.current;
+    if (!cur) return;
+    const last = readJson(KEY_OPENED);
+    openSite(last && last.siteId === cur.siteId ? last.url : cur.url);
+  });
   $('listBtn').addEventListener('click', () => {
     const id = currentView && currentView.current && currentView.current.siteId;
     const row = id && document.querySelector('[data-site="' + id + '"]');

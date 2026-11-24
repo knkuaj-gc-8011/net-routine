@@ -2,7 +2,7 @@
 // chrome.storage.local:
 //   routineData … 一覧 / routineState … 当日の状態（毎朝5時リセット）
 //   siteLastViewed … { siteId: アプリから最後に開いた日時 }（リセットしない）
-//   feedStatus … { siteId: { url, channelId, latest, checkedAt, error } }（YouTube の新着確認結果）
+//   feedStatus … { siteId: { url, channelId, latest, videos, checkedAt, error } }（YouTube の新着確認結果。videos はショートを除く動画の古い順）
 // chrome.storage.session: routineTabId … 巡回タブのID
 importScripts('core.js');
 const C = self.RoutineCore;
@@ -16,12 +16,15 @@ async function loadAll() {
   return { data, state, skip };
 }
 
-// アプリから開いた日時を記録する（YouTube の新着判定の基準）
-async function recordViewed(siteId) {
-  const r = await chrome.storage.local.get('siteLastViewed');
+// サイトを開く準備: 開くURLを決め、アプリから開いた日時を記録する（YouTube の新着判定の基準）
+// YouTube チャンネルに新着動画があれば、チャンネルページの代わりに新着動画を古い順に再生する
+async function prepareOpen(site) {
+  const r = await chrome.storage.local.get(['siteLastViewed', 'feedStatus']);
   const lv = r.siteLastViewed || {};
-  lv[siteId] = Date.now();
+  const target = C.feedOpenTarget(site, (r.feedStatus || {})[site.id], lv[site.id]);
+  lv[site.id] = target ? target.viewedAt : Date.now();
   await chrome.storage.local.set({ siteLastViewed: lv });
+  return target ? target.url : site.url;
 }
 
 /* ---------- YouTube チャンネルの新着確認 ---------- */
@@ -45,11 +48,14 @@ async function checkOneFeed(site, prev) {
       if (!st.channelId) throw new Error('チャンネルIDが見つかりません');
     }
     const xml = await fetchText('https://www.youtube.com/feeds/videos.xml?channel_id=' + st.channelId);
-    st.latest = C.parseYouTubeFeedLatest(xml);
+    const feed = C.parseYouTubeFeed(xml);
+    st.latest = feed.latest;
+    st.videos = feed.videos;
     st.error = null;
   } catch (e) {
     // 確認できなかったときは「新着あり」扱い（飛ばさない）
     st.latest = null;
+    st.videos = [];
     st.error = String(e && e.message ? e.message : e);
   }
   st.checkedAt = Date.now();
@@ -73,7 +79,7 @@ function checkFeeds() {
       while (queue.length) {
         const site = queue.shift();
         const prev = old[site.id];
-        const fresh = prev && prev.url === site.url && !prev.error && Date.now() - prev.checkedAt < FEED_MIN_INTERVAL;
+        const fresh = prev && prev.url === site.url && !prev.error && Array.isArray(prev.videos) && Date.now() - prev.checkedAt < FEED_MIN_INTERVAL;
         next[site.id] = fresh ? prev : await checkOneFeed(site, prev);
       }
     };
@@ -153,14 +159,14 @@ async function handle(msg, sender) {
       if (msg.action && msg.action.type === 'start') await waitAtMost(checkFeeds(), 6000);
       const { data, state, skip } = await loadAll();
       const res = C.applyAction(data, state, msg.action, new Date(), { skip });
-      if (res.entry) await recordViewed(res.entry.site.id);
+      const openUrl = res.entry ? await prepareOpen(res.entry.site) : null;
       if (!res.noop) {
         const save = { routineState: res.state };
         // 最初に戻ったときの案内は、移動先のページのナビバーでトースト表示する
         if (res.notice) save.navToast = { text: res.notice, at: Date.now() };
         await chrome.storage.local.set(save);
       }
-      if (res.entry) await openInRoutineTab(res.entry.site.url);
+      if (openUrl) await openInRoutineTab(openUrl);
       return Object.assign(await buildView(senderTabId), { result: { finished: res.finished, noop: res.noop, notice: res.notice } });
     }
     case 'toggle': {
@@ -182,8 +188,7 @@ async function handle(msg, sender) {
       const siteId = state.currentSiteId || list[0].site.id;
       const res = C.applyAction(data, state, { type: 'goto', siteId }, new Date());
       await chrome.storage.local.set({ routineState: res.state });
-      await recordViewed(res.entry.site.id);
-      await openInRoutineTab(res.entry.site.url);
+      await openInRoutineTab(await prepareOpen(res.entry.site));
       return buildView(senderTabId);
     }
     default:

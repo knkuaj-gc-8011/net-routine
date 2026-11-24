@@ -294,10 +294,48 @@ test('describeFeedStatus: 新着チェックの状況の説明文', () => {
   const t = new Date(2026, 10, 22, 9, 5).getTime();
   assert.equal(C.describeFeedStatus(undefined, 0), '確認待ち');
   assert.match(C.describeFeedStatus({ error: 'HTTP 404' }), /確認できませんでした（HTTP 404）/);
-  assert.equal(C.describeFeedStatus({ latest: null }), '動画がありません');
+  assert.equal(C.describeFeedStatus({ latest: null }), '動画がありません（ショートは数えません）');
+  assert.match(C.describeFeedStatus({ latest: null }, t), /新着なし（飛ばす）$/);
   assert.equal(C.describeFeedStatus({ latest: t }), '最新動画 11/22 09:05・まだアプリから開いていません');
   assert.match(C.describeFeedStatus({ latest: t }, t + 1), /新着なし（飛ばす）$/);
   assert.match(C.describeFeedStatus({ latest: t }, t - 1), /新着あり$/);
+  const videos = [{ id: 'a', t: t - 10 }, { id: 'b', t: t }];
+  assert.match(C.describeFeedStatus({ latest: t, videos }, t - 20), /新着あり（2本を古い順に再生）$/);
+});
+
+test('YouTube: フィードから動画を読む（ショートは除く・古い順）', () => {
+  const entry = (id, date, short) => `<entry><yt:videoId>${id}</yt:videoId>
+    <link rel="alternate" href="https://www.youtube.com/${short ? 'shorts/' + id : 'watch?v=' + id}"/>
+    <published>${date}</published></entry>`;
+  const xml = `<feed><link rel="alternate" href="https://www.youtube.com/channel/UCx"/>
+    <published>2010-01-01T00:00:00+00:00</published>
+    ${entry('new', '2026-11-23T00:00:00+00:00')}${entry('sht', '2026-11-24T00:00:00+00:00', true)}
+    ${entry('old', '2026-11-21T00:00:00+00:00')}</feed>`;
+  const r = C.parseYouTubeFeed(xml);
+  assert.deepEqual(r.videos.map((v) => v.id), ['old', 'new']);
+  assert.equal(r.latest, Date.parse('2026-11-23T00:00:00+00:00'), 'ショートは最新に数えない');
+  assert.deepEqual(C.parseYouTubeFeed(entry('s', '2026-11-24T00:00:00Z', true)), { latest: null, videos: [] });
+});
+
+test('YouTube: feedOpenTarget（新着動画を古い順に開く）', () => {
+  const site = { id: 'y', name: 'y', url: 'https://www.youtube.com/@one' };
+  const st = { url: site.url, latest: 400, checkedAt: 500, videos: [{ id: 'v1', t: 100 }, { id: 'v3', t: 300 }, { id: 'v2', t: 200 }, { id: 'v4', t: 400 }] };
+  assert.deepEqual(C.feedOpenTarget(site, st, 150), {
+    url: 'https://www.youtube.com/watch_videos?video_ids=v2,v3,v4', count: 3, viewedAt: 500,
+  });
+  assert.deepEqual(C.feedOpenTarget(site, st, 350), { url: 'https://www.youtube.com/watch?v=v4', count: 1, viewedAt: 500 });
+  assert.equal(C.feedOpenTarget(site, st, 400), null, '新着なしならチャンネルページ');
+  assert.equal(C.feedOpenTarget(site, st, undefined), null, '一度も開いていなければチャンネルページ');
+  assert.equal(C.feedOpenTarget(site, Object.assign({}, st, { error: 'x' }), 150), null);
+  assert.equal(C.feedOpenTarget(site, Object.assign({}, st, { url: 'https://www.youtube.com/@other' }), 150), null, 'URL を変えた後の古い結果は使わない');
+  assert.equal(C.feedOpenTarget(Object.assign({}, site, { noFeedCheck: true }), st, 150), null);
+  assert.equal(C.feedOpenTarget(site, { url: site.url, latest: 400 }, 150), null, '動画一覧のない古い結果');
+});
+
+test('YouTube: ショートしかないチャンネルは、一度開いた後は飛ばす', () => {
+  const data = { categories: [{ id: 'c', name: 'YT', sites: [{ id: 'y', name: 'y', url: 'https://www.youtube.com/@one' }] }] };
+  assert.deepEqual(C.computeFeedSkip(data, { y: { latest: null, videos: [] } }, { y: 100 }), ['y']);
+  assert.deepEqual(C.computeFeedSkip(data, { y: { latest: null, videos: [] } }, {}), []);
 });
 
 test('noFeedCheck は編集・書き出し・読み込みで保たれる', () => {

@@ -2,7 +2,9 @@
 // iPhone のWebアプリは YouTube のデータを直接読めない（CORS の制限）ため、ここで代わりに読む。
 //
 // 使い方: GET <このWorkerのURL>?url=<YouTubeチャンネルのURL>[&channelId=UC...]
-// 応答:   { "channelId": "UC...", "latest": 最新動画の公開日時（ミリ秒）| null }
+// 応答:   { "channelId": "UC...", "latest": 最新動画の公開日時（ミリ秒）| null,
+//           "videos": [{ "id": 動画ID, "t": 公開日時（ミリ秒）}]（古い順） }
+//         ショート動画は除く
 //         失敗時は { "error": "理由" }
 //
 // ・YouTube のチャンネル以外は扱わない（何でも取りに行ける中継にはしない）
@@ -36,7 +38,8 @@ export default {
         if (!channelId) return reply({ error: 'チャンネルIDが見つかりません' }, 404);
       }
       const xml = await fetchText('https://www.youtube.com/feeds/videos.xml?channel_id=' + channelId);
-      return reply({ channelId, latest: latestPublished(xml) });
+      const feed = parseFeed(xml);
+      return reply({ channelId, latest: feed.latest, videos: feed.videos });
     } catch (e) {
       return reply({ error: String(e && e.message ? e.message : e) }, 502);
     }
@@ -55,7 +58,7 @@ async function fetchText(url) {
   return res.text();
 }
 
-// 以下は shared/core.js の youTubeChannelRef / extractChannelId / parseYouTubeFeedLatest と同じ判定
+// 以下は shared/core.js の youTubeChannelRef / extractChannelId / parseYouTubeFeed と同じ判定
 function channelPageUrl(input) {
   let u;
   try { u = new URL(String(input || '')); } catch (e) { return null; }
@@ -81,13 +84,22 @@ function extractChannelId(html) {
   return null;
 }
 
-function latestPublished(xml) {
-  const re = /<entry>[\s\S]*?<published>([^<]+)<\/published>/g;
-  let latest = null;
+function parseFeed(xml) {
+  const re = /<entry>([\s\S]*?)<\/entry>/g;
+  const videos = [];
   let m;
   while ((m = re.exec(xml))) {
-    const t = Date.parse(m[1]);
-    if (!isNaN(t) && (latest === null || t > latest)) latest = t;
+    const body = m[1];
+    const pub = body.match(/<published>([^<]+)<\/published>/);
+    const t = pub ? Date.parse(pub[1]) : NaN;
+    if (isNaN(t)) continue;
+    if (/<link rel="alternate" href="[^"]*\/shorts\//.test(body)) continue; // ショートは除く
+    const id = body.match(/<yt:videoId>([\w-]+)<\/yt:videoId>/);
+    videos.push({ id: id ? id[1] : null, t });
   }
-  return latest;
+  videos.sort((a, b) => a.t - b.t);
+  return {
+    latest: videos.length ? videos[videos.length - 1].t : null,
+    videos: videos.filter((v) => v.id),
+  };
 }
