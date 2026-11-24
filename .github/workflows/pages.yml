@@ -1,4 +1,5 @@
 # iphone/ フォルダを GitHub Pages に公開する
+# まれに deploy で「No artifacts named "github-pages"」となるが、GitHub 側の一時的なエラー。もう一度実行すれば通る
 name: Deploy iPhone app to Pages
 
 on:
