@@ -235,6 +235,7 @@
             siteName: current.site.name,
             url: current.site.url,
             categoryName: current.category.name,
+            autoSeconds: categoryAutoSeconds(current.category), // 自動巡回のカテゴリなら表示秒数、違えば null
             catProgress: p.categories[current.catIndex],
             position: cur + 1,
             visited: visited.has(current.site.id),
@@ -310,6 +311,45 @@
     const c = findCategory(d, catId);
     if (c) c.name = String(name || '').trim() || c.name;
     return d;
+  }
+
+  /* 自動巡回（PC版）: カテゴリに auto: true と autoSeconds（表示秒数 1〜99）を持たせる */
+  const AUTO_SECONDS_DEFAULT = 10;
+
+  /** 表示秒数の入力を読む。全角数字も受け付ける。1〜99 の整数でなければ null */
+  function parseAutoSeconds(input) {
+    const s = String(input == null ? '' : input).trim()
+      .replace(/[０-９]/g, function (ch) { return String.fromCharCode(ch.charCodeAt(0) - 0xfee0); });
+    if (!/^\d{1,2}$/.test(s)) return null;
+    const n = Number(s);
+    return n >= 1 && n <= 99 ? n : null;
+  }
+
+  /** カテゴリの表示秒数（自動巡回が有効なときだけ数値、無効なら null） */
+  function categoryAutoSeconds(cat) {
+    if (!cat || !cat.auto) return null;
+    return parseAutoSeconds(cat.autoSeconds) || AUTO_SECONDS_DEFAULT;
+  }
+
+  /** 自動巡回の設定を変える。patch: { auto?: 真偽, autoSeconds?: 入力文字列か数値 }。戻り値: { ok, data, error } */
+  function updateCategoryAuto(data, catId, patch) {
+    const d = clone(data);
+    const c = findCategory(d, catId);
+    if (!c) return { ok: false, data: data, error: 'カテゴリが見つかりません' };
+    if (patch.autoSeconds !== undefined) {
+      const n = parseAutoSeconds(patch.autoSeconds);
+      if (n === null) return { ok: false, data: data, error: '表示秒数は 1〜99 の半角数字で入れてください' };
+      c.autoSeconds = n;
+    }
+    if (patch.auto !== undefined) {
+      if (patch.auto) {
+        c.auto = true;
+        if (!parseAutoSeconds(c.autoSeconds)) c.autoSeconds = AUTO_SECONDS_DEFAULT;
+      } else {
+        delete c.auto; // 秒数は残す（またオンにしたときに使う）
+      }
+    }
+    return { ok: true, data: d, error: null };
   }
 
   function removeCategory(data, catId) {
@@ -542,14 +582,16 @@
         app: 'net-routine',
         version: DATA_VERSION,
         categories: data.categories.map(function (c) {
-          return {
-            name: c.name,
+          const oc = { name: c.name };
+          if (c.auto) oc.auto = true;
+          if (parseAutoSeconds(c.autoSeconds)) oc.autoSeconds = c.autoSeconds;
+          return Object.assign(oc, {
             sites: c.sites.map(function (x) {
               const o = { name: x.name, url: x.url };
               if (x.noFeedCheck) o.noFeedCheck = true;
               return o;
             }),
-          };
+          });
         }),
       },
       null,
@@ -589,7 +631,10 @@
         if (x.noFeedCheck === true) out.noFeedCheck = true;
         outSites.push(out);
       }
-      d.categories.push({ id: genId('cat'), name: c.name.trim(), sites: outSites });
+      const cat = { id: genId('cat'), name: c.name.trim(), sites: outSites };
+      if (c.auto === true) cat.auto = true;
+      if (parseAutoSeconds(c.autoSeconds)) cat.autoSeconds = parseAutoSeconds(c.autoSeconds);
+      d.categories.push(cat);
     }
     return { ok: true, data: d, error: null };
   }
@@ -609,6 +654,9 @@
     addCategory: addCategory,
     renameCategory: renameCategory,
     removeCategory: removeCategory,
+    parseAutoSeconds: parseAutoSeconds,
+    categoryAutoSeconds: categoryAutoSeconds,
+    updateCategoryAuto: updateCategoryAuto,
     moveCategory: moveCategory,
     addSite: addSite,
     updateSite: updateSite,

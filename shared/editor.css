@@ -67,6 +67,11 @@
 .re-feed { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: 0.85em; margin: -2px 0 4px; }
 .re-feed label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
 .re-feed-info { color: var(--re-muted); }
+/* カテゴリの「自動巡回」「表示秒数」（PC版） */
+.re-auto { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; font-size: 0.9em; }
+.re-auto label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.re-auto .re-auto-sec { width: 3.2em; text-align: center; font-variant-numeric: tabular-nums; }
+.re-auto.re-off label:nth-child(2) { color: var(--re-muted); cursor: default; }
 .re-btns { display: flex; gap: 4px; }
 .re-btns button { padding: 4px 8px; }
 .re-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }

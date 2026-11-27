@@ -7,6 +7,7 @@
  *   grabLabels（省略可）: { row, rowTitle, add, addTitle, error } でボタンの文言とエラー文を変えられる。
  *   feedToggle（省略可）: true なら YouTube チャンネルの行に「新着チェック」の切り替えを出す（PC版）。
  *   feedInfo（省略可）: (siteId) => 文字列。新着チェックの状況として行に表示する。
+ *   autoToggle（省略可）: true ならカテゴリに「自動巡回」と「表示秒数」の設定を出す（PC版）。
  */
 (function (root) {
   'use strict';
@@ -186,6 +187,42 @@
       ]);
     }
 
+    // カテゴリの「自動巡回」と「表示秒数」。秒数は自動巡回がオンのときだけ入力できる
+    function autoRow(cat) {
+      if (!opts.autoToggle) return null;
+      const on = !!cat.auto;
+      const sec = h('input', {
+        class: 're-auto-sec', type: 'text', inputmode: 'numeric', maxlength: '2', size: '2',
+        'aria-label': '表示秒数', 'data-key': 'autosec:' + cat.id, disabled: !on,
+        value: String(C.parseAutoSeconds(cat.autoSeconds) || 10),
+        // 半角数字だけ残す（全角数字は半角に直す）
+        oninput: function (e) {
+          const v = e.target.value.replace(/[０-９]/g, function (ch) { return String.fromCharCode(ch.charCodeAt(0) - 0xfee0); })
+            .replace(/\D/g, '').slice(0, 2);
+          if (v !== e.target.value) e.target.value = v;
+        },
+        onchange: function (e) {
+          const r = C.updateCategoryAuto(data, cat.id, { autoSeconds: e.target.value });
+          if (!r.ok) {
+            e.target.value = String(C.parseAutoSeconds(cat.autoSeconds) || 10);
+            return show(r.error, true);
+          }
+          commit(r.data);
+        },
+      });
+      return h('div', { class: 're-auto' + (on ? '' : ' re-off') }, [
+        h('label', null, [
+          h('input', {
+            type: 'checkbox', checked: on, 'data-key': 'auto:' + cat.id,
+            onchange: function (e) { commit(C.updateCategoryAuto(data, cat.id, { auto: e.target.checked }).data); },
+          }),
+          ' 自動巡回',
+        ]),
+        h('label', null, ['表示秒数 ', sec, ' 秒']),
+        h('span', { class: 're-feed-info' }, 'ナビの「自動巡回ON」にチェックがあるとき、この秒数ごとに次のサイトへ進む'),
+      ]);
+    }
+
     function categoryCard(cat) {
       return h('section', { class: 're-cat' }, [
         h('div', { class: 're-cat-head' }, [
@@ -204,6 +241,7 @@
             }, '✕'),
           ]),
         ]),
+        autoRow(cat),
         h('div', { class: 're-sites' }, cat.sites.map(siteRow)),
         addSiteForm(cat),
       ]);

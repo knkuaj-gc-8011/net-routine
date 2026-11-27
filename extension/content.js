@@ -14,6 +14,8 @@
   let toast = null; // { text, until }
   let shownToastAt = null; // 同じ案内を二度出さないため
   const TOAST_MS = 3500;
+  let autoOn = false; // ナビの「自動巡回ON」（保存して全ページ共通）
+  let autoTimer = null; // { siteId, left（残り秒）, handle }
 
   async function send(msg) {
     try {
@@ -76,7 +78,60 @@
     render();
   }
 
+  /* ---------- 自動巡回: 自動巡回のカテゴリでは、表示秒数ごとに「次へ」と同じ動きをする ---------- */
+  function stopAuto() {
+    if (autoTimer) clearInterval(autoTimer.handle);
+    autoTimer = null;
+  }
+
+  // 今のサイトに合わせてカウントダウンを始める・止める（同じサイトのまま再描画しても数え直さない）
+  function syncAuto() {
+    const cur = view && view.current;
+    if (!autoOn || !cur || !cur.autoSeconds) return stopAuto();
+    if (autoTimer && autoTimer.siteId === cur.siteId) return;
+    stopAuto();
+    autoTimer = { siteId: cur.siteId, left: cur.autoSeconds, handle: setInterval(tickAuto, 1000) };
+  }
+
+  function tickAuto() {
+    if (!autoTimer) return;
+    // タブが見えていない間・編集メニューを開いている間は止めておく
+    if (document.visibilityState !== 'visible' || editMenuOpen) return;
+    autoTimer.left -= 1;
+    if (autoTimer.left <= 0) {
+      stopAuto();
+      act('next', null, true); // 一覧の開閉はそのまま
+      return;
+    }
+    const el = shadow && shadow.querySelector('.auto-left');
+    if (el) el.textContent = autoLeftText();
+  }
+
+  const autoLeftText = () => (autoTimer ? 'あと' + autoTimer.left + '秒' : '');
+
+  async function setAutoOn(v) {
+    autoOn = v;
+    await chrome.storage.local.set({ autoTour: v }).catch(() => {});
+    syncAuto();
+    render();
+  }
+
+  function autoCheck(cur) {
+    const sec = cur && cur.autoSeconds;
+    return h('label', {
+      class: 'auto' + (autoOn ? ' on' : ''),
+      title: sec
+        ? 'このカテゴリは ' + sec + ' 秒ごとに次のサイトへ自動で進みます'
+        : '「自動巡回」を設定したカテゴリで、表示秒数ごとに次のサイトへ自動で進みます（設定は編集画面のカテゴリで）',
+    }, [
+      h('input', { type: 'checkbox', checked: autoOn, onchange: (e) => setAutoOn(e.target.checked) }),
+      '自動巡回ON',
+      autoTimer ? h('span', { class: 'auto-left' }, autoLeftText()) : null,
+    ]);
+  }
+
   function destroy() {
+    stopAuto();
     if (host) host.remove();
     host = null;
     shadow = null;
@@ -97,12 +152,14 @@
   function applyView(v) {
     if (!v || !v.isRoutineTab) return destroy();
     view = v;
+    syncAuto();
     render();
   }
 
   async function refresh() {
-    const r = await chrome.storage.local.get(['navCollapsed', 'navListOpen', 'navToast']).catch(() => ({}));
+    const r = await chrome.storage.local.get(['navCollapsed', 'navListOpen', 'navToast', 'autoTour']).catch(() => ({}));
     collapsed = !!r.navCollapsed;
+    autoOn = !!r.autoTour;
     listOpen = !!r.navListOpen;
     // 最初に戻ったときの案内（ページ移動の直後に出せるよう、少しの間だけ有効）
     const t = r.navToast;
@@ -209,7 +266,10 @@
 
     if (collapsed) {
       shadow.replaceChildren(toastEl || '', h('div', { class: 'pill' }, [
-        h('button', { title: 'ナビを開く', onclick: () => setCollapsed(false) }, '▲ ' + progress),
+        h('button', { title: 'ナビを開く', onclick: () => setCollapsed(false) }, [
+          '▲ ' + progress,
+          autoTimer ? h('span', { class: 'auto-left' }, autoLeftText()) : null,
+        ]),
         h('button', { class: 'primary', disabled: !v.canNext, onclick: () => act('next') }, '次へ ▶'),
       ]));
       return;
@@ -241,6 +301,7 @@
           title: '今日のチェック数 / 全サイト数' + (v.noNewCount ? '\n新着動画がないため飛ばすチャンネル: ' + v.noNewCount + '件' : ''),
         }, progress + (v.noNewCount ? '（新着なし ' + v.noNewCount + '）' : '')),
         cur ? checkButton(cur.siteId, cur.visited, cur.noNew, cur.noNewVisited) : null,
+        autoCheck(cur),
         h('button', { disabled: !v.canPrev, onclick: () => act('prev') }, '◀ 前へ'),
         h('button', { class: 'primary', disabled: !v.canNext, onclick: () => act('next') }, '次へ ▶'),
         h('button', { disabled: !v.canNextCategory, onclick: () => act('nextCategory') }, '次カテゴリ ⏭'),
@@ -353,6 +414,13 @@
     }
     .menu button span { color: var(--muted); font-size: 12px; }
     .menu-error { color: #e5484d; font-size: 12px; }
+    .auto {
+      display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px; white-space: nowrap;
+      border: 1px solid var(--border); border-radius: 6px; cursor: pointer; user-select: none;
+    }
+    .auto.on { border-color: var(--primary); }
+    .auto input { margin: 0; accent-color: var(--primary); cursor: pointer; }
+    .auto-left { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 4px; }
     .pill {
       position: fixed; right: 12px; bottom: 12px; display: flex; gap: 4px; padding: 4px;
       background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
@@ -361,7 +429,7 @@
   `;
 
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && (changes.routineState || changes.routineData || changes.navCollapsed || changes.navToast || changes.feedStatus)) refresh();
+    if (area === 'local' && (changes.routineState || changes.routineData || changes.navCollapsed || changes.navToast || changes.feedStatus || changes.autoTour)) refresh();
   });
 
   refresh();

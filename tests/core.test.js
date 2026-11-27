@@ -380,3 +380,48 @@ test('配布用の core.js / editor.js が shared の正本と一致している
     }
   }
 });
+
+test('自動巡回: 表示秒数の読み取りとカテゴリの設定', () => {
+  assert.equal(C.parseAutoSeconds('15'), 15);
+  assert.equal(C.parseAutoSeconds('０５'), 5, '全角数字は半角として読む');
+  assert.equal(C.parseAutoSeconds('0'), null);
+  assert.equal(C.parseAutoSeconds('100'), null);
+  assert.equal(C.parseAutoSeconds('1.5'), null);
+  assert.equal(C.parseAutoSeconds(''), null);
+  let d = C.addCategory(C.emptyData(), 'ニュース');
+  const id = d.categories[0].id;
+  assert.equal(C.categoryAutoSeconds(d.categories[0]), null);
+  d = C.updateCategoryAuto(d, id, { auto: true }).data;
+  assert.equal(C.categoryAutoSeconds(d.categories[0]), 10, 'オンにすると既定は10秒');
+  d = C.updateCategoryAuto(d, id, { autoSeconds: '30' }).data;
+  assert.equal(C.categoryAutoSeconds(d.categories[0]), 30);
+  const bad = C.updateCategoryAuto(d, id, { autoSeconds: 'abc' });
+  assert.equal(bad.ok, false);
+  assert.equal(bad.data, d, '失敗したら変えない');
+  d = C.updateCategoryAuto(d, id, { auto: false }).data;
+  assert.equal(C.categoryAutoSeconds(d.categories[0]), null);
+  assert.equal(d.categories[0].autoSeconds, 30, 'オフにしても秒数は残す');
+  d = C.updateCategoryAuto(d, id, { auto: true }).data;
+  assert.equal(C.categoryAutoSeconds(d.categories[0]), 30);
+  // 名前を変えても設定は保たれる
+  d = C.renameCategory(d, id, '速報');
+  assert.equal(C.categoryAutoSeconds(d.categories[0]), 30);
+});
+
+test('自動巡回: 書き出し・読み込みで保たれ、表示データに秒数が出る', () => {
+  const json = JSON.stringify({ categories: [
+    { name: '自動', auto: true, autoSeconds: 7, sites: [{ name: 'a', url: 'https://a.example/' }] },
+    { name: '手動', autoSeconds: 20, sites: [{ name: 'b', url: 'https://b.example/' }] },
+  ] });
+  const d = C.validateImport(json).data;
+  assert.equal(C.categoryAutoSeconds(d.categories[0]), 7);
+  assert.equal(C.categoryAutoSeconds(d.categories[1]), null);
+  const back = JSON.parse(C.exportJson(d));
+  assert.deepEqual([back.categories[0].auto, back.categories[0].autoSeconds], [true, 7]);
+  assert.deepEqual([back.categories[1].auto, back.categories[1].autoSeconds], [undefined, 20]);
+  const now = new Date();
+  let r = C.applyAction(d, C.emptyState(now), { type: 'next' }, now);
+  assert.equal(C.getView(d, r.state, now).current.autoSeconds, 7);
+  r = C.applyAction(d, r.state, { type: 'next' }, now);
+  assert.equal(C.getView(d, r.state, now).current.autoSeconds, null);
+});

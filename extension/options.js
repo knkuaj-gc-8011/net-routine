@@ -23,6 +23,7 @@ const editor = RoutineEditor.mount(document.getElementById('editor'), {
   save: (data) => chrome.storage.local.set({ routineData: data }),
   getCurrentPage: isPanel ? getCurrentPage : undefined,
   feedToggle: true,
+  autoToggle: true, // カテゴリの「自動巡回」「表示秒数」
   feedInfo,
 });
 
