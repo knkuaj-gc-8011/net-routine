@@ -45,6 +45,7 @@ function Field({ value, onCommit, style, ...rest }) {
       onEndEditing={() => { if (text !== value && onCommit(text) === false) setText(value); }}
       style={[s.input, style]}
       placeholderTextColor={colors.muted}
+      keyboardAppearance="dark"
       autoCapitalize="none"
       autoCorrect={false}
       {...rest}
@@ -52,7 +53,7 @@ function Field({ value, onCommit, style, ...rest }) {
   );
 }
 
-export default function Editor({ data, feedStatus, lastViewed, currentPage, onSave, onClose }) {
+export default function Editor({ data, feedStatus, lastViewed, currentPage, forceDark, onForceDark, onSave, onClose }) {
   const [message, setMessage] = useState(null); // { text, error }
   const [drafts, setDrafts] = useState({}); // 追加欄の書きかけ { catId: { name, url } }
 
@@ -112,6 +113,10 @@ export default function Editor({ data, feedStatus, lastViewed, currentPage, onSa
           <Text style={s.pageText} numberOfLines={3}>{pageLabel}</Text>
         </View>
         {message ? <Text style={[s.msg, message.error && s.msgError]}>{message.text}</Text> : null}
+        <View style={s.pageBox}>
+          <Check checked={forceDark} label="ダークモード非対応のサイトも暗く表示する（色を反転）" onChange={onForceDark} />
+          <Text style={[s.muted, s.small]}>ダークモード対応のサイトは、この設定に関係なく暗く表示されます。変更は次に開いたページから反映されます。</Text>
+        </View>
 
         {data.categories.map((cat) => {
           const auto = !!cat.auto;
@@ -176,8 +181,8 @@ export default function Editor({ data, feedStatus, lastViewed, currentPage, onSa
               })}
 
               <View style={[s.site, s.addBox]}>
-                <TextInput style={s.input} placeholder="サイト名（省略可）" placeholderTextColor={colors.muted} value={d.name || ''} onChangeText={(v) => setDrafts({ ...drafts, [cat.id]: { ...d, name: v } })} />
-                <TextInput style={s.input} placeholder="URL" placeholderTextColor={colors.muted} keyboardType="url" autoCapitalize="none" autoCorrect={false} value={d.url || ''} onChangeText={(v) => setDrafts({ ...drafts, [cat.id]: { ...d, url: v } })} />
+                <TextInput keyboardAppearance="dark" style={s.input} placeholder="サイト名（省略可）" placeholderTextColor={colors.muted} value={d.name || ''} onChangeText={(v) => setDrafts({ ...drafts, [cat.id]: { ...d, name: v } })} />
+                <TextInput keyboardAppearance="dark" style={s.input} placeholder="URL" placeholderTextColor={colors.muted} keyboardType="url" autoCapitalize="none" autoCorrect={false} value={d.url || ''} onChangeText={(v) => setDrafts({ ...drafts, [cat.id]: { ...d, url: v } })} />
                 <View style={s.row}>
                   <Btn small label="追加" kind="primary" onPress={() => addSite(cat, false)} />
                   <Btn small label="今のページを追加" onPress={() => addSite(cat, true)} />

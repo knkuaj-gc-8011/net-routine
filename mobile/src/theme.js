@@ -1,14 +1,16 @@
-// 画面の色（今の iPhone版・PC版と同じ配色）
+// 画面の色。サイトをダークモードで見るため、アプリ全体を暗い配色にする（今の iPhone版のダーク配色と同じ）
 export const colors = {
-  bg: '#f5f6f8',
-  card: '#ffffff',
-  fg: '#1d232b',
-  muted: '#66707c',
-  border: '#d6d9de',
-  primary: '#2563eb',
-  ok: '#16a34a',
-  hl: '#e8efff',
-  quiet: '#9aa1aa',
-  danger: '#dc2626',
-  navBg: 'rgba(255,255,255,0.97)',
+  bg: '#101317',
+  card: '#1b1f25',
+  fg: '#e6e9ee',
+  muted: '#9aa3ae',
+  border: '#343b45',
+  primary: '#5b8cff',
+  ok: '#34c46a',
+  hl: '#22304a',
+  quiet: '#8b939c',
+  danger: '#f87171',
+  navBg: 'rgba(24,27,32,0.97)',
+  toastBg: '#f1f3f6',
+  toastFg: '#1d232b',
 };

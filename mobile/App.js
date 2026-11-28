@@ -1,7 +1,7 @@
 // ネットルーティン iPhone アプリ（Expo Go で動く版）
 // サイトをアプリの中で表示し、画面下にナビを重ねる。自動巡回・YouTube の新着チェックも行う。
 import { useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Appearance, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import C from './src/core';
@@ -10,6 +10,9 @@ import { checkFeeds } from './src/feeds';
 import WebFrame from './src/WebFrame';
 import Editor from './src/Editor';
 import { colors } from './src/theme';
+
+// アプリ全体をダークモードにする。アプリ内ブラウザもダーク扱いになり、ダークモード対応のサイトは暗く表示される
+try { Appearance.setColorScheme('dark'); } catch (e) { /* 古い環境では何もしない */ }
 
 const FEED_INTERVAL = 30 * 60 * 1000; // 30分ごとに新着を確認
 const TOAST_MS = 3500;
@@ -48,19 +51,19 @@ function CheckCircle({ visited, noNew, noNewVisited, size, onPress }) {
   );
 }
 
+// ナビのボタン（アイコンだけ。名前は読み上げ用に持たせる）
 function NavBtn({ icon, label, onPress, primary, disabled, flex }) {
   return (
-    <Pressable onPress={onPress} disabled={disabled}
+    <Pressable onPress={onPress} disabled={disabled} accessibilityLabel={label} accessibilityRole="button"
       style={({ pressed }) => [st.navBtn, { flex: flex || 1 }, primary && st.navPrimary, disabled && { opacity: 0.4 }, pressed && { opacity: 0.6 }]}>
       <Text style={[st.navIcon, primary && { color: '#fff' }]}>{icon}</Text>
-      <Text style={[st.navLabel, primary && { color: '#fff', fontWeight: '600' }]}>{label}</Text>
     </Pressable>
   );
 }
 
 function Main() {
   const insets = useSafeAreaInsets();
-  const [store, setStore] = useState({ data: C.emptyData(), state: null, lastViewed: {}, feedStatus: {}, autoOn: false });
+  const [store, setStore] = useState({ data: C.emptyData(), state: null, lastViewed: {}, feedStatus: {}, autoOn: false, forceDark: true });
   const ref = useRef(store); // タイマーなどから最新の値を読むため
   const [loaded, setLoaded] = useState(false);
   const [page, setPage] = useState(null); // { url, key } 表示中のサイト
@@ -114,6 +117,7 @@ function Main() {
         lastViewed: r.lastViewed || {},
         feedStatus: r.feedStatus || {},
         autoOn: !!r.autoOn,
+        forceDark: r.forceDark !== false, // 既定はオン
       };
       ref.current = next;
       setStore(next);
@@ -202,11 +206,11 @@ function Main() {
 
   return (
     <View style={st.root}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <View style={{ height: insets.top, backgroundColor: colors.navBg }} />
       <View style={st.content}>
         {page ? (
-          <WebFrame key={page.key} url={page.url} onPage={setCurPage} onOpenWindow={(u) => u && openUrl(u)} />
+          <WebFrame key={page.key} url={page.url} forceDark={store.forceDark} onPage={setCurPage} onOpenWindow={(u) => u && openUrl(u)} />
         ) : (
           <View style={st.start}>
             <Text style={st.startTitle}>{text.title}</Text>
@@ -267,7 +271,7 @@ function Main() {
       </View>
 
       {!collapsed ? (
-        <View style={[st.nav, { paddingBottom: 8 + insets.bottom }]}>
+        <View style={[st.nav, { paddingBottom: Math.max(insets.bottom - 20, 4) }]}>{/* ボタンをできるだけ下に寄せる */}
           <View style={st.navTop}>
             <View style={[st.navInfo, { flex: 4.6 }]}>
               <Pressable onPress={() => setCollapsed(true)} hitSlop={8} style={st.collapse}><Text style={st.muted}>▼</Text></Pressable>
@@ -300,6 +304,8 @@ function Main() {
             feedStatus={store.feedStatus}
             lastViewed={store.lastViewed}
             currentPage={curPage}
+            forceDark={store.forceDark}
+            onForceDark={(v) => update({ forceDark: v })}
             onSave={(d) => {
               update({ data: d, state: C.normalizeState(ref.current.state, d, new Date()) });
               refreshFeeds();
@@ -321,7 +327,7 @@ const st = StyleSheet.create({
   startSub: { fontSize: 14, color: colors.muted, textAlign: 'center' },
   bigBtn: { marginTop: 8, backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 28, paddingVertical: 14 },
   bigBtnText: { color: '#fff', fontSize: 17, fontWeight: '600' },
-  nav: { backgroundColor: colors.navBg, borderTopWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingTop: 8, gap: 8 },
+  nav: { backgroundColor: colors.navBg, borderTopWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingTop: 6, gap: 6 },
   navTop: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   navInfo: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
   collapse: { paddingHorizontal: 2 },
@@ -335,10 +341,9 @@ const st = StyleSheet.create({
   autoTickMark: { color: '#fff', fontSize: 11, fontWeight: '700' },
   autoText: { fontSize: 9, color: colors.fg },
   navBtns: { flexDirection: 'row', gap: 6 },
-  navBtn: { minHeight: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 10, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  navBtn: { height: 40, borderWidth: 1, borderColor: colors.border, borderRadius: 10, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', gap: 2 },
   navPrimary: { backgroundColor: colors.primary, borderColor: colors.primary },
-  navIcon: { fontSize: 17, color: colors.fg },
-  navLabel: { fontSize: 11, color: colors.fg },
+  navIcon: { fontSize: 18, color: colors.fg },
   sheet: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.bg },
   sheetHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   sheetTitle: { flex: 1, fontSize: 16, fontWeight: '600', color: colors.fg },
@@ -350,7 +355,7 @@ const st = StyleSheet.create({
   listName: { fontSize: 16, color: colors.fg },
   badge: { fontSize: 11, color: colors.muted, borderWidth: 1, borderColor: colors.border, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 3, overflow: 'hidden' },
   toastWrap: { position: 'absolute', left: 16, right: 16, bottom: 12, alignItems: 'center' },
-  toast: { backgroundColor: '#1d232b', color: '#fff', fontSize: 14, fontWeight: '600', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, overflow: 'hidden', textAlign: 'center' },
+  toast: { backgroundColor: colors.toastBg, color: colors.toastFg, fontSize: 14, fontWeight: '600', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, overflow: 'hidden', textAlign: 'center' },
   pill: { position: 'absolute', right: 12, flexDirection: 'row', gap: 4, padding: 4, backgroundColor: colors.navBg, borderWidth: 1, borderColor: colors.border, borderRadius: 12 },
   pillBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   pillText: { fontSize: 14, color: colors.fg },

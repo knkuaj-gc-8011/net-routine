@@ -8,6 +8,7 @@ export const KEYS = {
   feedStatus: 'nr.feedStatus', // { siteId: { url, channelId, latest, videos, checkedAt, error } }
   autoOn: 'nr.autoOn', // ナビの「自動巡回ON」
   lastOpened: 'nr.lastOpened', // { siteId, url } 最後に開いたもの（起動時に開き直す）
+  forceDark: 'nr.forceDark', // ダークモード非対応のサイトも色の反転で暗くする（既定はオン）
 };
 
 export async function loadAll() {
