@@ -11,8 +11,13 @@ const UA_SUFFIX = 'Version/18.0 Mobile/15E148 Safari/604.1';
 const FORCE_DARK_JS = `
 (function () {
   if (window.__nrDark) return; window.__nrDark = true;
+  // 画像は「ページ全体の反転」と「画像だけの反転」で二重に反転して元の色に戻す。
+  // 入れ物（picture など）と中の画像の両方を反転すると三重になって色が反転したままになるため、
+  // picture は対象にせず、背景画像を持つ入れ物の中の画像は反転しない
   var CSS = 'html{filter:invert(1) hue-rotate(180deg)!important;background:#fff!important}' +
-    'img,video,picture,canvas,iframe,embed,object,[style*="background-image"]{filter:invert(1) hue-rotate(180deg)!important}';
+    'img,video,canvas,iframe,embed,object,[style*="background-image"]{filter:invert(1) hue-rotate(180deg)!important}' +
+    '[style*="background-image"] img,[style*="background-image"] video,[style*="background-image"] canvas,' +
+    '[style*="background-image"] [style*="background-image"]{filter:none!important}';
   function lum(c) {
     var m = String(c || '').match(/rgba?\\(([\\d.]+),\\s*([\\d.]+),\\s*([\\d.]+)(?:,\\s*([\\d.]+))?/);
     if (!m || (m[4] !== undefined && +m[4] < 0.1)) return null; // 透明
