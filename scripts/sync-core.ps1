@@ -8,3 +8,6 @@ foreach ($dir in @('extension', 'iphone')) {
     }
     Write-Host "コピーしました: $dir\ ($($files -join ', '))"
 }
+# iPhone アプリ（Expo 版）は画面の作りが違うので、ロジックの core.js だけ使う
+Copy-Item -Path (Join-Path $root "shared\core.js") -Destination (Join-Path $root "mobile\src\core.js") -Force
+Write-Host "コピーしました: mobile\src\ (core.js)"

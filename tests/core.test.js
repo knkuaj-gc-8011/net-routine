@@ -379,6 +379,8 @@ test('配布用の core.js / editor.js が shared の正本と一致している
       assert.equal(copy, src, `${dir}/${f} が古いです。scripts/sync-core.ps1 を実行してください`);
     }
   }
+  const mobile = fs.readFileSync(path.join(root, 'mobile', 'src', 'core.js'), 'utf8');
+  assert.equal(mobile, fs.readFileSync(path.join(root, 'shared', 'core.js'), 'utf8'), 'mobile/src/core.js が古いです。scripts/sync-core.ps1 を実行してください');
 });
 
 test('自動巡回: 表示秒数の読み取りとカテゴリの設定', () => {
