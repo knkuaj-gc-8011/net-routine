@@ -1,4 +1,5 @@
 // サイトを表示する枠。iPhone ではアプリ内ブラウザ（WebView）を使う
+import { useRef } from 'react';
 import { WebView } from 'react-native-webview';
 import { colors } from './theme';
 
@@ -35,8 +36,10 @@ const FORCE_DARK_JS = `
 true;`;
 
 export default function WebFrame({ url, onPage, onOpenWindow, forceDark }) {
+  const ref = useRef(null);
   return (
     <WebView
+      ref={ref}
       source={{ uri: url }}
       style={{ flex: 1, backgroundColor: colors.bg }}
       applicationNameForUserAgent={UA_SUFFIX}
@@ -46,6 +49,10 @@ export default function WebFrame({ url, onPage, onOpenWindow, forceDark }) {
       pullToRefreshEnabled
       sharedCookiesEnabled
       injectedJavaScript={forceDark ? FORCE_DARK_JS : undefined}
+      // iOS では onMessage がないと injectedJavaScript が動かないことがあるため、空の受け口を置く
+      onMessage={() => {}}
+      // 念のため、読み込み完了時にも組み込む（二重に動いても1回分だけ効く）
+      onLoadEnd={() => { if (forceDark && ref.current) ref.current.injectJavaScript(FORCE_DARK_JS); }}
       // 新しいウィンドウで開くリンクは、同じ画面で開く
       onOpenWindow={(e) => onOpenWindow && onOpenWindow(e.nativeEvent.targetUrl)}
       onNavigationStateChange={(nav) => onPage && onPage({ url: nav.url, title: nav.title })}
